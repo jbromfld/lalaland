@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Research Briefing</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    }
+
+    main {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel,
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 18px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.3);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 24px;
+      padding: 22px 18px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .sidebar h1,
+    .view-header h2 {
+      margin: 0 0 8px;
+    }
+
+    .sidebar p,
+    .view-header p,
+    .meta,
+    #status {
+      margin: 0;
+      color: #94a3b8;
+    }
+
+    .nav-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .nav-button,
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .nav-button {
+      background: #172554;
+      color: #dbeafe;
+      text-align: left;
+    }
+
+    .nav-button.is-active {
+      background: #38bdf8;
+      color: #082f49;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .primary {
+      background: #38bdf8;
+      color: #082f49;
+    }
+
+    .ghost {
+      background: #1e293b;
+      color: #cbd5e1;
+    }
+
+    #status {
+      min-height: 1.5em;
+    }
+
+    .content {
+      display: grid;
+      gap: 20px;
+    }
+
+    .view {
+      display: none;
+      padding: 24px;
+    }
+
+    .view.is-active {
+      display: block;
+    }
+
+    .view-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .grid,
+    .source-list,
+    .schedule-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      padding: 20px;
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .source {
+      color: #7dd3fc;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+
+    .summary {
+      margin: 14px 0 18px;
+      line-height: 1.5;
+      color: #e5e7eb;
+      white-space: pre-wrap;
+    }
+
+    .rating-group {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .rating-group button {
+      background: #334155;
+      color: #e2e8f0;
+      min-width: 42px;
+      border-radius: 999px;
+    }
+
+    .empty {
+      padding: 28px;
+      text-align: center;
+      color: #cbd5e1;
+      border: 1px dashed rgba(148, 163, 184, 0.25);
+      border-radius: 18px;
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.95rem;
+      color: #cbd5e1;
+    }
+
+    input,
+    select {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .checkbox input {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+    }
+
+    .source-card,
+    .schedule-card {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 14px;
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+      background: rgba(30, 41, 59, 0.45);
+    }
+
+    .source-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: #cbd5e1;
+      font-size: 0.95rem;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #1e293b;
+    }
+
+    .disabled {
+      opacity: 0.7;
+    }
+
+    .schedule-time {
+      color: #7dd3fc;
+      font-weight: 700;
+    }
+
+    .headline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .count-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #38bdf8;
+      color: #082f49;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    a {
+      color: #f8fafc;
+      word-break: break-word;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="app-shell">
+      <aside class="panel sidebar">
+        <div>
+          <h1>Daily Research Briefing</h1>
+          <div class="headline">
+            <p>Manage sources, review summaries, and check today’s calendar in one place.</p>
+            <span class="count-pill" id="inbox-count">0</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
+          <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
+          <button class="nav-button" type="button" data-view-target="schedule-view">Today's Schedule</button>
+        </nav>
+
+        <div class="actions">
+          <button class="ghost" id="refresh-button" type="button">Refresh</button>
+          <button class="primary" id="run-button" type="button">Run daily pull now</button>
+        </div>
+
+        <div id="status"></div>
+      </aside>
+
+      <section class="content">
+        <section class="panel view" id="sources-view">
+          <div class="view-header">
+            <div>
+              <h2>Research sources</h2>
+              <p>Manage the `research_sources` table from the dashboard.</p>
+            </div>
+          </div>
+
+          <form id="source-form">
+            <input id="source-id" type="hidden" />
+            <div class="form-grid">
+              <label>
+                Name
+                <input id="source-name" name="name" type="text" required />
+              </label>
+              <label>
+                Tags
+                <input id="source-tags" name="tags" type="text" placeholder="lab, AI, CSP" />
+              </label>
+              <label>
+                Feed URL
+                <input id="source-feed-url" name="feed_url" type="url" required />
+              </label>
+              <label>
+                Adapter
+                <select id="source-adapter-type" name="adapter_type">
+                  <option value="rss">rss</option>
+                  <option value="html">html</option>
+                </select>
+              </label>
+              <label>
+                Weight
+                <input id="source-weight" name="source_weight" type="number" min="0" value="1" required />
+              </label>
+            </div>
+            <label class="checkbox">
+              <input id="source-enabled" name="enabled" type="checkbox" checked />
+              Enabled
+            </label>
+            <div class="actions">
+              <button class="primary" id="source-submit" type="submit">Add source</button>
+              <button class="ghost" id="source-cancel" type="button" hidden>Cancel edit</button>
+            </div>
+          </form>
+
+          <div class="source-list" id="source-list"></div>
+        </section>
+
+        <section class="panel view is-active" id="inbox-view">
+          <div class="view-header">
+            <div>
+              <h2>Inbox</h2>
+              <p>Entries leave the inbox when you dismiss, mark read, or rate them.</p>
+            </div>
+          </div>
+
+          <div class="grid" id="research"></div>
+        </section>
+
+        <section class="panel view" id="schedule-view">
+          <div class="view-header">
+            <div>
+              <h2>Today's schedule</h2>
+              <p>Daily events pulled from your configured Google Calendar ICS feed.</p>
+            </div>
+          </div>
+
+          <div class="schedule-list" id="schedule-list"></div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const researchNode = document.getElementById("research");
+    const sourceListNode = document.getElementById("source-list");
+    const scheduleListNode = document.getElementById("schedule-list");
+    const statusNode = document.getElementById("status");
+    const runButton = document.getElementById("run-button");
+    const refreshButton = document.getElementById("refresh-button");
+    const sourceForm = document.getElementById("source-form");
+    const sourceIdInput = document.getElementById("source-id");
+    const sourceNameInput = document.getElementById("source-name");
+    const sourceTagsInput = document.getElementById("source-tags");
+    const sourceFeedUrlInput = document.getElementById("source-feed-url");
+    const sourceAdapterTypeInput = document.getElementById("source-adapter-type");
+    const sourceWeightInput = document.getElementById("source-weight");
+    const sourceEnabledInput = document.getElementById("source-enabled");
+    const sourceSubmitButton = document.getElementById("source-submit");
+    const sourceCancelButton = document.getElementById("source-cancel");
+    const inboxCountNode = document.getElementById("inbox-count");
+    const inboxNavCountNode = document.getElementById("inbox-nav-count");
+    const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
+    const views = Array.from(document.querySelectorAll(".view"));
+
+    let sourcesCache = [];
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({ detail: "Request failed" }));
+        throw new Error(payload.detail || "Request failed");
+      }
+
+      return response.json();
+    }
+
+    function setStatus(message) {
+      statusNode.textContent = message;
+    }
+
+    function setActiveView(viewId) {
+      viewButtons.forEach((button) => {
+        button.classList.toggle("is-active", button.dataset.viewTarget === viewId);
+      });
+      views.forEach((view) => {
+        view.classList.toggle("is-active", view.id === viewId);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+
+    function safeUrl(value) {
+      try {
+        const parsed = new URL(value, window.location.origin);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          return parsed.toString();
+        }
+      } catch (error) {
+        return "#";
+      }
+
+      return "#";
+    }
+
+    function renderEmptyInbox() {
+      inboxCountNode.textContent = "0";
+      inboxNavCountNode.textContent = "(0)";
+      researchNode.innerHTML = '<div class="empty">No pending summaries right now.</div>';
+    }
+
+    function setInboxCount(count) {
+      inboxCountNode.textContent = String(count);
+      inboxNavCountNode.textContent = `(${count})`;
+    }
+
+    function renderEmptySchedule(message) {
+      scheduleListNode.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    }
+
+    function resetSourceForm() {
+      sourceForm.reset();
+      sourceIdInput.value = "";
+      sourceEnabledInput.checked = true;
+      sourceWeightInput.value = "1";
+      sourceAdapterTypeInput.value = "rss";
+      sourceSubmitButton.textContent = "Add source";
+      sourceCancelButton.hidden = true;
+    }
+
+    function fillSourceForm(source) {
+      sourceIdInput.value = source.id;
+      sourceNameInput.value = source.name;
+      sourceTagsInput.value = (source.tags || []).join(", ");
+      sourceFeedUrlInput.value = source.feed_url;
+      sourceAdapterTypeInput.value = source.adapter_type;
+      sourceWeightInput.value = String(source.source_weight);
+      sourceEnabledInput.checked = source.enabled;
+      sourceSubmitButton.textContent = "Save changes";
+      sourceCancelButton.hidden = false;
+      sourceNameInput.focus();
+    }
+
+    function renderSources(sources) {
+      sourcesCache = sources;
+      if (!sources.length) {
+        sourceListNode.innerHTML = '<div class="empty">No sources configured yet.</div>';
+        return;
+      }
+
+      sourceListNode.innerHTML = sources.map((source) => `
+        <article class="source-card ${source.enabled ? "" : "disabled"}">
+          <div class="card-top">
+            <div>
+              <strong>${escapeHtml(source.name)}</strong>
+              <div class="source-meta">
+                <span class="tag">${escapeHtml(source.adapter_type)}</span>
+                <span class="tag">weight ${escapeHtml(source.source_weight)}</span>
+                <span class="tag">${source.enabled ? "enabled" : "disabled"}</span>
+                ${(source.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
+                ${source.last_polled_at ? `<span class="tag">last pull ${escapeHtml(new Date(source.last_polled_at).toLocaleString())}</span>` : ""}
+              </div>
+            </div>
+            <div class="actions">
+              <button class="ghost" type="button" data-source-action="edit" data-id="${source.id}">Edit</button>
+              <button class="ghost" type="button" data-source-action="toggle" data-id="${source.id}">${source.enabled ? "Disable" : "Enable"}</button>
+              <button class="ghost" type="button" data-source-action="delete" data-id="${source.id}">Delete</button>
+            </div>
+          </div>
+          <a href="${safeUrl(source.feed_url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(source.feed_url)}</a>
+        </article>
+      `).join("");
+    }
+
+    function formatScheduleTime(event) {
+      if (event.all_day) {
+        return "All day";
+      }
+
+      const formatter = new Intl.DateTimeFormat([], {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      const start = event.start ? formatter.format(new Date(event.start)) : "";
+      const end = event.end ? formatter.format(new Date(event.end)) : "";
+      return end ? `${start} - ${end}` : start;
+    }
+
+    function renderSchedule(payload) {
+      if (!payload.configured) {
+        renderEmptySchedule("Set GOOGLE_CALENDAR_ICS_URL in .env to show today’s schedule.");
+        return;
+      }
+
+      if (!payload.events.length) {
+        renderEmptySchedule("No events scheduled today.");
+        return;
+      }
+
+      scheduleListNode.innerHTML = payload.events.map((event) => `
+        <article class="schedule-card">
+          <div class="schedule-time">${escapeHtml(formatScheduleTime(event))}</div>
+          <strong>${escapeHtml(event.title)}</strong>
+          ${event.location ? `<div class="meta">${escapeHtml(event.location)}</div>` : ""}
+          ${event.description ? `<div class="meta">${escapeHtml(event.description)}</div>` : ""}
+          ${event.url ? `<a href="${safeUrl(event.url)}" target="_blank" rel="noreferrer noopener">Open event link</a>` : ""}
+        </article>
+      `).join("");
+    }
+
+    async function loadSources() {
+      const sources = await api("/api/sources");
+      renderSources(sources);
+    }
+
+    async function loadInbox() {
+      const items = await api("/api/inbox");
+      setInboxCount(items.length);
+      if (!items.length) {
+        renderEmptyInbox();
+        return;
+      }
+
+      researchNode.innerHTML = items.map((item) => `
+        <article class="card">
+          <div class="card-top">
+            <div>
+              <div class="source">${escapeHtml(item.source_name)}</div>
+              <strong>${escapeHtml(item.title)}</strong>
+            </div>
+            <button class="ghost" type="button" data-action="dismiss" data-id="${item.id}" aria-label="Dismiss">×</button>
+          </div>
+          <div class="summary">${escapeHtml(item.summary)}</div>
+          <div class="actions">
+            <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open source</a>
+            <button class="ghost" type="button" data-action="read" data-id="${item.id}">Mark read</button>
+            <div class="rating-group" aria-label="Rate item ${item.id}">
+              ${[1, 2, 3, 4, 5].map((value) => `
+                <button type="button" data-action="rate" data-id="${item.id}" data-rating="${value}">${value}</button>
+              `).join("")}
+            </div>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    async function loadSchedule() {
+      const schedule = await api("/api/schedule/today");
+      renderSchedule(schedule);
+    }
+
+    async function refreshInbox(message = "") {
+      try {
+        if (message) {
+          setStatus(message);
+        }
+        await loadInbox();
+        setStatus(message);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    }
+
+    async function refreshAll(message = "") {
+      try {
+        if (message) {
+          setStatus(message);
+        }
+        await Promise.all([loadSources(), loadInbox(), loadSchedule()]);
+        setStatus(message);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    }
+
+    researchNode.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) {
+        return;
+      }
+
+      const { action, id, rating } = button.dataset;
+      try {
+        if (action === "dismiss") {
+          await api(`/api/inbox/${id}/dismiss`, { method: "POST" });
+          await refreshInbox("Dismissed item.");
+        } else if (action === "read") {
+          await api(`/api/inbox/${id}/read`, { method: "POST" });
+          await refreshInbox("Marked as read. Rate it when you're done.");
+        } else if (action === "rate") {
+          await api(`/api/inbox/${id}/rate`, {
+            method: "POST",
+            body: JSON.stringify({ rating: Number(rating) })
+          });
+          await refreshInbox(`Recorded rating ${rating}.`);
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    sourceListNode.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-source-action]");
+      if (!button) {
+        return;
+      }
+
+      const source = sourcesCache.find((item) => item.id === button.dataset.id);
+      if (!source) {
+        return;
+      }
+
+      try {
+        if (button.dataset.sourceAction === "edit") {
+          fillSourceForm(source);
+          setActiveView("sources-view");
+          return;
+        }
+
+        if (button.dataset.sourceAction === "toggle") {
+          await api(`/api/sources/${source.id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              name: source.name,
+              tags: source.tags || [],
+              feed_url: source.feed_url,
+              adapter_type: source.adapter_type,
+              source_weight: source.source_weight,
+              enabled: !source.enabled
+            })
+          });
+          await refreshAll(`Updated ${source.name}.`);
+          return;
+        }
+
+        if (button.dataset.sourceAction === "delete") {
+          await api(`/api/sources/${source.id}`, { method: "DELETE" });
+          if (sourceIdInput.value === source.id) {
+            resetSourceForm();
+          }
+          await refreshAll(`Deleted ${source.name}.`);
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    sourceForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const payload = {
+        name: sourceNameInput.value.trim(),
+        tags: sourceTagsInput.value
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        feed_url: sourceFeedUrlInput.value.trim(),
+        adapter_type: sourceAdapterTypeInput.value,
+        source_weight: Number(sourceWeightInput.value),
+        enabled: sourceEnabledInput.checked
+      };
+
+      try {
+        if (sourceIdInput.value) {
+          await api(`/api/sources/${sourceIdInput.value}`, {
+            method: "PUT",
+            body: JSON.stringify(payload)
+          });
+          resetSourceForm();
+          await refreshAll(`Saved ${payload.name}.`);
+        } else {
+          await api("/api/sources", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+          resetSourceForm();
+          await refreshAll(`Added ${payload.name}.`);
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    sourceCancelButton.addEventListener("click", () => {
+      resetSourceForm();
+      setStatus("Canceled source edit.");
+    });
+
+    runButton.addEventListener("click", async () => {
+      try {
+        setStatus("Running the daily pull...");
+        const result = await api("/api/jobs/run-now", { method: "POST" });
+        await refreshAll(`Processed ${result.sources_processed} sources and created ${result.entries_created} summaries.`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    refreshButton.addEventListener("click", () => {
+      refreshAll("Refreshing dashboard...");
+    });
+
+    viewButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        setActiveView(button.dataset.viewTarget);
+      });
+    });
+
+    resetSourceForm();
+    refreshAll();
+  </script>
+</body>
+</html>

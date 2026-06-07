@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+apscheduler
+requests
+beautifulsoup4
+feedparser
+psycopg[binary]
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-http
+icalevents
