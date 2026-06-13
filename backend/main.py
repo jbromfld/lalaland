@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import date
 
 from fastapi import FastAPI, HTTPException
 from psycopg import IntegrityError
@@ -22,7 +23,7 @@ from backend.db import (
 )
 from backend.scheduler import start as start_scheduler
 from backend.scheduler import stop as stop_scheduler
-from backend.services.calendar import fetch_todays_schedule
+from backend.services.calendar import fetch_schedule_for_date
 from backend.services.pipeline import run_daily_pipeline
 from backend.telemetry import setup_telemetry
 
@@ -104,8 +105,8 @@ def sources() -> list[dict]:
 
 
 @app.get("/api/schedule/today")
-def todays_schedule() -> dict:
-    return fetch_todays_schedule(settings)
+def todays_schedule(date_value: date | None = None) -> dict:
+    return fetch_schedule_for_date(settings, date_value)
 
 
 @app.post("/api/sources")

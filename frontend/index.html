@@ -261,6 +261,19 @@
       font-weight: 700;
     }
 
+    .schedule-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .date-label {
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
     .headline {
       display: flex;
       align-items: center;
@@ -391,6 +404,13 @@
             </div>
           </div>
 
+          <div class="schedule-toolbar">
+            <button class="ghost" id="schedule-prev" type="button">Previous day</button>
+            <button class="ghost" id="schedule-today" type="button">Today</button>
+            <button class="ghost" id="schedule-next" type="button">Next day</button>
+            <span class="date-label" id="schedule-date-label"></span>
+          </div>
+
           <div class="schedule-list" id="schedule-list"></div>
         </section>
       </section>
@@ -414,12 +434,17 @@
     const sourceEnabledInput = document.getElementById("source-enabled");
     const sourceSubmitButton = document.getElementById("source-submit");
     const sourceCancelButton = document.getElementById("source-cancel");
+    const schedulePrevButton = document.getElementById("schedule-prev");
+    const scheduleTodayButton = document.getElementById("schedule-today");
+    const scheduleNextButton = document.getElementById("schedule-next");
+    const scheduleDateLabel = document.getElementById("schedule-date-label");
     const inboxCountNode = document.getElementById("inbox-count");
     const inboxNavCountNode = document.getElementById("inbox-nav-count");
     const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
     const views = Array.from(document.querySelectorAll(".view"));
 
     let sourcesCache = [];
+    let selectedScheduleDate = new Date().toISOString().slice(0, 10);
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -484,6 +509,26 @@
 
     function renderEmptySchedule(message) {
       scheduleListNode.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    }
+
+    function changeScheduleDate(days) {
+      const current = new Date(`${selectedScheduleDate}T12:00:00`);
+      current.setDate(current.getDate() + days);
+      selectedScheduleDate = current.toISOString().slice(0, 10);
+    }
+
+    function resetScheduleDate() {
+      selectedScheduleDate = new Date().toISOString().slice(0, 10);
+    }
+
+    function formatScheduleDateLabel(value) {
+      const date = new Date(`${value}T12:00:00`);
+      return new Intl.DateTimeFormat([], {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      }).format(date);
     }
 
     function resetSourceForm() {
@@ -555,6 +600,9 @@
     }
 
     function renderSchedule(payload) {
+      selectedScheduleDate = payload.date;
+      scheduleDateLabel.textContent = formatScheduleDateLabel(payload.date);
+
       if (!payload.configured) {
         renderEmptySchedule("Set GOOGLE_CALENDAR_ICS_URL in .env to show today’s schedule.");
         return;
@@ -613,7 +661,7 @@
     }
 
     async function loadSchedule() {
-      const schedule = await api("/api/schedule/today");
+      const schedule = await api(`/api/schedule/today?date_value=${encodeURIComponent(selectedScheduleDate)}`);
       renderSchedule(schedule);
     }
 
@@ -766,6 +814,21 @@
 
     refreshButton.addEventListener("click", () => {
       refreshAll("Refreshing dashboard...");
+    });
+
+    schedulePrevButton.addEventListener("click", async () => {
+      changeScheduleDate(-1);
+      await loadSchedule();
+    });
+
+    scheduleTodayButton.addEventListener("click", async () => {
+      resetScheduleDate();
+      await loadSchedule();
+    });
+
+    scheduleNextButton.addEventListener("click", async () => {
+      changeScheduleDate(1);
+      await loadSchedule();
     });
 
     viewButtons.forEach((button) => {

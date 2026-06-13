@@ -28,30 +28,30 @@ def _serialize_event_datetime(value, timezone) -> str | None:
     return None
 
 
-def fetch_todays_schedule(settings: Settings) -> dict:
+def fetch_schedule_for_date(settings: Settings, target_date: date | None = None) -> dict:
     timezone = _resolve_timezone(settings.google_calendar_timezone)
-    now = datetime.now(timezone)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    tomorrow_start = today_start + timedelta(days=1)
+    selected_date = target_date or datetime.now(timezone).date()
+    day_start = datetime.combine(selected_date, time.min, timezone)
+    next_day_start = day_start + timedelta(days=1)
 
     if not settings.google_calendar_ics_url:
         return {
             "configured": False,
-            "date": today_start.date().isoformat(),
+            "date": selected_date.isoformat(),
             "events": [],
         }
 
     parsed_events = calendar_events(
         url=settings.google_calendar_ics_url,
-        start=today_start,
-        end=tomorrow_start,
+        start=day_start,
+        end=next_day_start,
         tzinfo=timezone,
         sort=True,
     )
 
     return {
         "configured": True,
-        "date": today_start.date().isoformat(),
+        "date": selected_date.isoformat(),
         "events": [
             {
                 "title": event.summary or "Untitled event",
@@ -65,3 +65,7 @@ def fetch_todays_schedule(settings: Settings) -> dict:
             for event in parsed_events
         ],
     }
+
+
+def fetch_todays_schedule(settings: Settings) -> dict:
+    return fetch_schedule_for_date(settings)
