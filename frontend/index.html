@@ -134,7 +134,9 @@
 
     .grid,
     .source-list,
-    .schedule-list {
+    .schedule-list,
+    .day-list,
+    .calendar-layout {
       display: grid;
       gap: 16px;
     }
@@ -211,6 +213,8 @@
       border-radius: 10px;
       padding: 10px 12px;
       font: inherit;
+      width: 100%;
+      min-width: 0;
     }
 
     .checkbox {
@@ -269,6 +273,159 @@
       margin-bottom: 18px;
     }
 
+    .calendar-block {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 14px;
+      padding: 16px;
+      background: rgba(30, 41, 59, 0.35);
+      display: grid;
+      gap: 14px;
+    }
+
+    .calendar-block.is-collapsed {
+      gap: 0;
+    }
+
+    .archive-card {
+      display: grid;
+      gap: 10px;
+    }
+
+    .archive-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: #cbd5e1;
+      font-size: 0.9rem;
+    }
+
+    .search-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-button {
+      background: #1e293b;
+      color: #cbd5e1;
+    }
+
+    .inline-form {
+      display: grid;
+      gap: 12px;
+    }
+
+    .inline-form textarea {
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .field-grid > label {
+      min-width: 0;
+    }
+
+    .note {
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+
+    .entry-card {
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 12px;
+      padding: 14px;
+      background: rgba(15, 23, 42, 0.65);
+      display: grid;
+      gap: 8px;
+    }
+
+    .entry-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .entry-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: #cbd5e1;
+      font-size: 0.92rem;
+    }
+
+    .entry-comments {
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      line-height: 1.5;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .stat-tile {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(15, 23, 42, 0.45);
+      display: grid;
+      gap: 4px;
+    }
+
+    .stat-label {
+      color: #94a3b8;
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .stat-value {
+      color: #e2e8f0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .chart-wrap {
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.45);
+      padding: 10px;
+    }
+
+    .chart-wrap svg {
+      width: 100%;
+      height: 220px;
+      display: block;
+    }
+
+    .compact-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
     .date-label {
       font-weight: 700;
       color: #e2e8f0;
@@ -325,7 +482,8 @@
         <nav class="nav-list">
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
-          <button class="nav-button" type="button" data-view-target="schedule-view">Today's Schedule</button>
+          <button class="nav-button" type="button" data-view-target="calendar-view">Calendar / Health</button>
+          <button class="nav-button" type="button" data-view-target="admin-view">Admin</button>
         </nav>
 
         <div class="actions">
@@ -389,18 +547,83 @@
           <div class="view-header">
             <div>
               <h2>Inbox</h2>
-              <p>Entries leave the inbox when you dismiss, mark read, or rate them.</p>
+              <p>Current queue plus search across previous summaries.</p>
             </div>
           </div>
+
+          <section class="calendar-block is-collapsed" id="inbox-search-panel">
+            <div class="block-header">
+              <h3>Search previous summaries</h3>
+              <button class="toggle-button" id="inbox-search-toggle" type="button" aria-expanded="false">Show search</button>
+            </div>
+            <div id="inbox-search-body" hidden>
+              <form id="inbox-search-form" class="inline-form">
+                <div class="field-grid">
+                  <label>
+                    Keyword
+                    <input id="inbox-search-q" type="search" placeholder="Search title, summary, or URL" />
+                  </label>
+                  <label>
+                    Source
+                    <select id="inbox-search-source">
+                      <option value="">Any source</option>
+                    </select>
+                  </label>
+                  <label>
+                    Label / tag
+                    <input id="inbox-search-label" type="search" placeholder="e.g. AI, lab, health" />
+                  </label>
+                  <label>
+                    Rank
+                    <select id="inbox-search-rating">
+                      <option value="">Any rank</option>
+                      <option value="5">5</option>
+                      <option value="4">4</option>
+                      <option value="3">3</option>
+                      <option value="2">2</option>
+                      <option value="1">1</option>
+                    </select>
+                  </label>
+                  <label>
+                    Sort
+                    <select id="inbox-search-sort">
+                      <option value="recent">Most recent</option>
+                      <option value="rank">Highest rank</option>
+                    </select>
+                  </label>
+                  <label>
+                    Limit
+                    <select id="inbox-search-limit">
+                      <option value="10">10</option>
+                      <option value="25">25</option>
+                      <option value="50">50</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="search-actions">
+                  <button class="primary" type="submit">Search</button>
+                  <button class="ghost" id="inbox-search-reset" type="button">Reset</button>
+                </div>
+              </form>
+              <div class="day-list" id="inbox-search-results"></div>
+            </div>
+          </section>
+
+          <section class="calendar-block">
+            <div class="block-header">
+              <h3>Current inbox</h3>
+              <span class="note">Entries leave the inbox when you dismiss, mark read, or rate them.</span>
+            </div>
+          </section>
 
           <div class="grid" id="research"></div>
         </section>
 
-        <section class="panel view" id="schedule-view">
+        <section class="panel view" id="calendar-view">
           <div class="view-header">
             <div>
-              <h2>Today's schedule</h2>
-              <p>Daily events pulled from your configured Google Calendar ICS feed.</p>
+              <h2>Calendar / Health</h2>
+              <p>Schedule and health records for the selected day. Use Admin for batch imports.</p>
             </div>
           </div>
 
@@ -408,10 +631,141 @@
             <button class="ghost" id="schedule-prev" type="button">Previous day</button>
             <button class="ghost" id="schedule-today" type="button">Today</button>
             <button class="ghost" id="schedule-next" type="button">Next day</button>
+            <button class="ghost" id="calendar-refresh" type="button">Refresh</button>
             <span class="date-label" id="schedule-date-label"></span>
           </div>
 
-          <div class="schedule-list" id="schedule-list"></div>
+          <div class="calendar-layout">
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Schedule</h3>
+                <span class="note" id="schedule-note"></span>
+              </div>
+              <div class="schedule-list" id="schedule-list"></div>
+            </section>
+
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Nutrition</h3>
+                <span class="count-pill" id="nutrition-count">0</span>
+              </div>
+              <form id="nutrition-form" class="inline-form">
+                <div class="field-grid">
+                  <label>
+                    Time
+                    <input id="nutrition-time" type="time" value="12:00" required />
+                  </label>
+                  <label>
+                    Meal name
+                    <select id="nutrition-meal-name">
+                      <option value="">Select meal</option>
+                      <option value="Breakfast">Breakfast</option>
+                      <option value="Lunch">Lunch</option>
+                      <option value="Dinner">Dinner</option>
+                      <option value="Snack">Snack</option>
+                    </select>
+                  </label>
+                  <label>
+                    Carbs (g)
+                    <input id="nutrition-carbs" type="number" min="0" step="0.1" />
+                  </label>
+                  <label>
+                    Protein (g)
+                    <input id="nutrition-protein" type="number" min="0" step="0.1" />
+                  </label>
+                  <label>
+                    Fat (g)
+                    <input id="nutrition-fat" type="number" min="0" step="0.1" />
+                  </label>
+                </div>
+                <label>
+                  Comments
+                  <textarea id="nutrition-comments" placeholder="Notes about the meal or how you felt afterwards"></textarea>
+                </label>
+                <label class="checkbox">
+                  <input id="nutrition-buffer" type="checkbox" />
+                  Buffer meal
+                </label>
+                <div class="actions">
+                  <button class="primary" type="submit">Add nutrition entry</button>
+                  <button class="ghost" id="nutrition-cancel-edit" type="button" hidden>Cancel edit</button>
+                </div>
+              </form>
+              <div class="day-list" id="nutrition-list"></div>
+            </section>
+
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>CGM readings</h3>
+                <span class="count-pill" id="glucose-count">0</span>
+              </div>
+              <p class="note">Batch imports are managed in the Admin view.</p>
+              <div class="day-list" id="glucose-list"></div>
+            </section>
+
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Apple Health workouts</h3>
+                <span class="count-pill" id="workout-count">0</span>
+              </div>
+              <p class="note">Batch imports are managed in the Admin view.</p>
+              <div class="day-list" id="workout-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="panel view" id="admin-view">
+          <div class="view-header">
+            <div>
+              <h2>Admin</h2>
+              <p>Global batch imports and environment-level settings.</p>
+            </div>
+          </div>
+
+          <div class="calendar-layout">
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Libre CGM Batch Upload</h3>
+              </div>
+              <form id="glucose-import-form" class="inline-form">
+                <div class="field-grid">
+                  <label>
+                    Libre CSV file
+                    <input id="glucose-file" type="file" accept=".csv,text/csv" required />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button class="primary" type="submit">Import Libre CSV</button>
+                </div>
+              </form>
+              <p class="note">Imports all rows in the file and deduplicates by timestamp.</p>
+            </section>
+
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Apple Health Batch Upload</h3>
+              </div>
+              <form id="apple-health-import-form" class="inline-form">
+                <div class="field-grid">
+                  <label>
+                    Export ZIP or XML
+                    <input id="apple-health-file" type="file" accept=".zip,.xml,application/zip,text/xml" required />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button class="primary" type="submit">Import Apple Health</button>
+                </div>
+              </form>
+              <p class="note">Large files are supported; duplicate workouts are skipped safely.</p>
+            </section>
+
+            <section class="calendar-block">
+              <div class="block-header">
+                <h3>Settings</h3>
+              </div>
+              <p class="note">Future global settings can live here (calendar feed, polling schedule, model defaults).</p>
+            </section>
+          </div>
         </section>
       </section>
     </div>
@@ -420,10 +774,26 @@
   <script>
     const researchNode = document.getElementById("research");
     const sourceListNode = document.getElementById("source-list");
+    const inboxSearchForm = document.getElementById("inbox-search-form");
+    const inboxSearchResultsNode = document.getElementById("inbox-search-results");
+    const inboxSearchResetButton = document.getElementById("inbox-search-reset");
+    const inboxSearchPanel = document.getElementById("inbox-search-panel");
+    const inboxSearchBody = document.getElementById("inbox-search-body");
+    const inboxSearchToggleButton = document.getElementById("inbox-search-toggle");
+    const inboxSearchQueryInput = document.getElementById("inbox-search-q");
+    const inboxSearchSourceInput = document.getElementById("inbox-search-source");
+    const inboxSearchLabelInput = document.getElementById("inbox-search-label");
+    const inboxSearchRatingInput = document.getElementById("inbox-search-rating");
+    const inboxSearchSortInput = document.getElementById("inbox-search-sort");
+    const inboxSearchLimitInput = document.getElementById("inbox-search-limit");
     const scheduleListNode = document.getElementById("schedule-list");
+    const nutritionListNode = document.getElementById("nutrition-list");
+    const glucoseListNode = document.getElementById("glucose-list");
+    const workoutListNode = document.getElementById("workout-list");
     const statusNode = document.getElementById("status");
     const runButton = document.getElementById("run-button");
     const refreshButton = document.getElementById("refresh-button");
+    const calendarRefreshButton = document.getElementById("calendar-refresh");
     const sourceForm = document.getElementById("source-form");
     const sourceIdInput = document.getElementById("source-id");
     const sourceNameInput = document.getElementById("source-name");
@@ -438,23 +808,62 @@
     const scheduleTodayButton = document.getElementById("schedule-today");
     const scheduleNextButton = document.getElementById("schedule-next");
     const scheduleDateLabel = document.getElementById("schedule-date-label");
+    const scheduleNoteNode = document.getElementById("schedule-note");
+    const nutritionCountNode = document.getElementById("nutrition-count");
+    const glucoseCountNode = document.getElementById("glucose-count");
+    const workoutCountNode = document.getElementById("workout-count");
+    const nutritionForm = document.getElementById("nutrition-form");
+    const nutritionTimeInput = document.getElementById("nutrition-time");
+    const nutritionMealNameInput = document.getElementById("nutrition-meal-name");
+    const nutritionCarbsInput = document.getElementById("nutrition-carbs");
+    const nutritionProteinInput = document.getElementById("nutrition-protein");
+    const nutritionFatInput = document.getElementById("nutrition-fat");
+    const nutritionCommentsInput = document.getElementById("nutrition-comments");
+    const nutritionBufferInput = document.getElementById("nutrition-buffer");
+    const nutritionCancelEditButton = document.getElementById("nutrition-cancel-edit");
+    const glucoseImportForm = document.getElementById("glucose-import-form");
+    const glucoseFileInput = document.getElementById("glucose-file");
+    const appleHealthImportForm = document.getElementById("apple-health-import-form");
+    const appleHealthFileInput = document.getElementById("apple-health-file");
     const inboxCountNode = document.getElementById("inbox-count");
     const inboxNavCountNode = document.getElementById("inbox-nav-count");
     const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
     const views = Array.from(document.querySelectorAll(".view"));
+    const calendarViewNode = document.getElementById("calendar-view");
 
     let sourcesCache = [];
-    let selectedScheduleDate = new Date().toISOString().slice(0, 10);
+    function getLocalDateString(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    let selectedCalendarDate = getLocalDateString();
+    let currentCalendarPayload = null;
+    let editingNutritionId = null;
+    let currentInboxSearch = {
+      q: "",
+      source: "",
+      label: "",
+      rating: "",
+      sort: "recent",
+      limit: "10"
+    };
 
     async function api(path, options = {}) {
+      const headers = options.body instanceof FormData ? {} : { "Content-Type": "application/json" };
       const response = await fetch(path, {
-        headers: { "Content-Type": "application/json" },
-        ...options
+        ...options,
+        headers: {
+          ...headers,
+          ...(options.headers || {})
+        }
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({ detail: "Request failed" }));
-        throw new Error(payload.detail || "Request failed");
+        throw new Error(payload.detail || payload.error || "Request failed");
       }
 
       return response.json();
@@ -496,39 +905,165 @@
       return "#";
     }
 
-    function renderEmptyInbox() {
-      inboxCountNode.textContent = "0";
-      inboxNavCountNode.textContent = "(0)";
-      researchNode.innerHTML = '<div class="empty">No pending summaries right now.</div>';
-    }
-
-    function setInboxCount(count) {
-      inboxCountNode.textContent = String(count);
-      inboxNavCountNode.textContent = `(${count})`;
-    }
-
-    function renderEmptySchedule(message) {
-      scheduleListNode.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
-    }
-
-    function changeScheduleDate(days) {
-      const current = new Date(`${selectedScheduleDate}T12:00:00`);
-      current.setDate(current.getDate() + days);
-      selectedScheduleDate = current.toISOString().slice(0, 10);
-    }
-
-    function resetScheduleDate() {
-      selectedScheduleDate = new Date().toISOString().slice(0, 10);
-    }
-
-    function formatScheduleDateLabel(value) {
-      const date = new Date(`${value}T12:00:00`);
+    function formatDateLabel(value) {
       return new Intl.DateTimeFormat([], {
         weekday: "long",
         month: "long",
         day: "numeric",
         year: "numeric"
-      }).format(date);
+      }).format(new Date(`${value}T12:00:00`));
+    }
+
+    function formatTime(value) {
+      return new Intl.DateTimeFormat([], {
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(new Date(value));
+    }
+
+    function formatTimeRange(startValue, endValue) {
+      return `${formatTime(startValue)} - ${formatTime(endValue)}`;
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds) {
+        return "—";
+      }
+
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    }
+
+    function formatDistance(meters) {
+      if (meters == null) {
+        return "—";
+      }
+
+      if (meters >= 1000) {
+        return `${(meters / 1000).toFixed(2).replace(/\.?0+$/, "")} km`;
+      }
+
+      return `${Math.round(meters)} m`;
+    }
+
+    function formatPace(secPerKm) {
+      if (secPerKm == null) {
+        return "—";
+      }
+
+      const minutes = Math.floor(secPerKm / 60);
+      const seconds = Math.round(secPerKm % 60);
+      return `${minutes}:${String(seconds).padStart(2, "0")} /km`;
+    }
+
+    function formatGlucoseValue(value) {
+      return `${Math.round(value)} mg/dL`;
+    }
+
+    function buildGlucoseChartSvg(entries) {
+      const width = 760;
+      const height = 220;
+      const margin = { top: 18, right: 22, bottom: 28, left: 36 };
+      const plotWidth = width - margin.left - margin.right;
+      const plotHeight = height - margin.top - margin.bottom;
+
+      const points = entries
+        .map((entry) => ({
+          t: new Date(entry.timestamp),
+          y: Number(entry.glucose_mgdl)
+        }))
+        .filter((point) => !Number.isNaN(point.t.valueOf()) && Number.isFinite(point.y))
+        .sort((a, b) => a.t - b.t);
+
+      if (!points.length) {
+        return "";
+      }
+
+      const minValue = Math.min(...points.map((p) => p.y));
+      const maxValue = Math.max(...points.map((p) => p.y));
+      const spread = Math.max(20, maxValue - minValue);
+      const yMin = Math.max(40, Math.floor((minValue - spread * 0.2) / 10) * 10);
+      const yMax = Math.ceil((maxValue + spread * 0.2) / 10) * 10;
+      const yRange = Math.max(1, yMax - yMin);
+
+      const xScale = (date) => {
+        const hours = date.getHours() + date.getMinutes() / 60;
+        return margin.left + (hours / 24) * plotWidth;
+      };
+
+      const yScale = (value) => margin.top + ((yMax - value) / yRange) * plotHeight;
+
+      const polylinePoints = points
+        .map((p) => `${xScale(p.t).toFixed(2)},${yScale(p.y).toFixed(2)}`)
+        .join(" ");
+
+      const hourTicks = [0, 6, 12, 18, 24]
+        .map((hour) => {
+          const x = margin.left + (hour / 24) * plotWidth;
+          const label = hour === 24 ? "24:00" : `${String(hour).padStart(2, "0")}:00`;
+          return `
+            <line x1="${x}" y1="${margin.top}" x2="${x}" y2="${margin.top + plotHeight}" stroke="rgba(148,163,184,0.2)" stroke-width="1" />
+            <text x="${x}" y="${height - 8}" text-anchor="middle" fill="#94a3b8" font-size="11">${label}</text>
+          `;
+        })
+        .join("");
+
+      const yTicks = [yMin, Math.round((yMin + yMax) / 2), yMax]
+        .map((val) => {
+          const y = yScale(val);
+          return `
+            <line x1="${margin.left}" y1="${y}" x2="${margin.left + plotWidth}" y2="${y}" stroke="rgba(148,163,184,0.2)" stroke-width="1" />
+            <text x="${margin.left - 6}" y="${y + 4}" text-anchor="end" fill="#94a3b8" font-size="11">${val}</text>
+          `;
+        })
+        .join("");
+
+      const circles = points
+        .map((p) => `<circle cx="${xScale(p.t).toFixed(2)}" cy="${yScale(p.y).toFixed(2)}" r="2.5" fill="#38bdf8" />`)
+        .join("");
+
+      return `
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="24-hour glucose chart">
+          ${hourTicks}
+          ${yTicks}
+          <polyline points="${polylinePoints}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+          ${circles}
+        </svg>
+      `;
+    }
+
+    function changeCalendarDate(days) {
+      const current = new Date(`${selectedCalendarDate}T12:00:00`);
+      current.setDate(current.getDate() + days);
+      selectedCalendarDate = current.toISOString().slice(0, 10);
+    }
+
+    function resetCalendarDate() {
+      selectedCalendarDate = getLocalDateString();
+    }
+
+    function resetNutritionForm() {
+      nutritionForm.reset();
+      nutritionTimeInput.value = "12:00";
+      nutritionBufferInput.checked = false;
+      editingNutritionId = null;
+      nutritionCancelEditButton.hidden = true;
+      nutritionForm.querySelector('button[type="submit"]').textContent = "Add nutrition entry";
+    }
+
+    function fillNutritionForm(entry) {
+      const timestamp = new Date(entry.timestamp);
+      nutritionTimeInput.value = `${String(timestamp.getHours()).padStart(2, "0")}:${String(timestamp.getMinutes()).padStart(2, "0")}`;
+      nutritionMealNameInput.value = entry.meal_name || "";
+      nutritionCarbsInput.value = entry.est_carbs_g ?? "";
+      nutritionProteinInput.value = entry.est_protein_g ?? "";
+      nutritionFatInput.value = entry.est_fat_g ?? "";
+      nutritionCommentsInput.value = entry.comments || "";
+      nutritionBufferInput.checked = !!entry.is_buffer_meal;
+      editingNutritionId = entry.id;
+      nutritionCancelEditButton.hidden = false;
+      nutritionForm.querySelector('button[type="submit"]').textContent = "Save nutrition entry";
     }
 
     function resetSourceForm() {
@@ -555,7 +1090,13 @@
     }
 
     function renderSources(sources) {
+      const selectedSource = inboxSearchSourceInput.value;
       sourcesCache = sources;
+      inboxSearchSourceInput.innerHTML = [
+        '<option value="">Any source</option>',
+        ...sources.map((source) => `<option value="${escapeHtml(source.name)}">${escapeHtml(source.name)}</option>`)
+      ].join("");
+      inboxSearchSourceInput.value = selectedSource;
       if (!sources.length) {
         sourceListNode.innerHTML = '<div class="empty">No sources configured yet.</div>';
         return;
@@ -585,37 +1126,70 @@
       `).join("");
     }
 
-    function formatScheduleTime(event) {
-      if (event.all_day) {
-        return "All day";
+    function renderEmptyInbox() {
+      inboxCountNode.textContent = "0";
+      inboxNavCountNode.textContent = "(0)";
+      researchNode.innerHTML = '<div class="empty">No pending summaries right now.</div>';
+    }
+
+    function renderEmptySearch(message) {
+      inboxSearchResultsNode.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    }
+
+    function setInboxCount(count) {
+      inboxCountNode.textContent = String(count);
+      inboxNavCountNode.textContent = `(${count})`;
+    }
+
+    function renderSearchResults(items) {
+      if (!items.length) {
+        renderEmptySearch("No saved summaries matched your search.");
+        return;
       }
 
-      const formatter = new Intl.DateTimeFormat([], {
-        hour: "numeric",
-        minute: "2-digit"
-      });
-      const start = event.start ? formatter.format(new Date(event.start)) : "";
-      const end = event.end ? formatter.format(new Date(event.end)) : "";
-      return end ? `${start} - ${end}` : start;
+      inboxSearchResultsNode.innerHTML = items.map((item) => `
+        <article class="archive-card">
+          <div class="card-top">
+            <div>
+              <div class="source">${escapeHtml(item.source_name)}</div>
+              <strong>${escapeHtml(item.title)}</strong>
+              <div class="archive-meta">
+                <span>${escapeHtml(formatDateLabel(item.discovered_at.slice(0, 10)))}</span>
+                ${item.rating != null ? `<span>Rank ${escapeHtml(item.rating)}</span>` : ""}
+                ${item.status ? `<span>${escapeHtml(item.status)}</span>` : ""}
+              </div>
+            </div>
+            <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open</a>
+          </div>
+          <div class="summary">${escapeHtml(item.summary)}</div>
+          ${item.source_tags && item.source_tags.length ? `
+            <div class="archive-meta">
+              ${item.source_tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
+            </div>
+          ` : ""}
+        </article>
+      `).join("");
     }
 
     function renderSchedule(payload) {
-      selectedScheduleDate = payload.date;
-      scheduleDateLabel.textContent = formatScheduleDateLabel(payload.date);
+      scheduleDateLabel.textContent = formatDateLabel(payload.date);
+      scheduleNoteNode.textContent = payload.configured
+        ? "Calendar feed is configured."
+        : "Set GOOGLE_CALENDAR_ICS_URL in .env to show schedule events.";
 
       if (!payload.configured) {
-        renderEmptySchedule("Set GOOGLE_CALENDAR_ICS_URL in .env to show today’s schedule.");
+        scheduleListNode.innerHTML = '<div class="empty">Calendar feed is not configured.</div>';
         return;
       }
 
       if (!payload.events.length) {
-        renderEmptySchedule("No events scheduled today.");
+        scheduleListNode.innerHTML = '<div class="empty">No events scheduled today.</div>';
         return;
       }
 
       scheduleListNode.innerHTML = payload.events.map((event) => `
         <article class="schedule-card">
-          <div class="schedule-time">${escapeHtml(formatScheduleTime(event))}</div>
+          <div class="schedule-time">${escapeHtml(event.all_day ? "All day" : formatTimeRange(event.start, event.end))}</div>
           <strong>${escapeHtml(event.title)}</strong>
           ${event.location ? `<div class="meta">${escapeHtml(event.location)}</div>` : ""}
           ${event.description ? `<div class="meta">${escapeHtml(event.description)}</div>` : ""}
@@ -624,9 +1198,169 @@
       `).join("");
     }
 
+    function renderNutrition(entries) {
+      nutritionCountNode.textContent = String(entries.length);
+      if (!entries.length) {
+        nutritionListNode.innerHTML = '<div class="empty">No nutrition entries for this day.</div>';
+        return;
+      }
+
+      nutritionListNode.innerHTML = entries.map((entry) => `
+        <article class="entry-card">
+          <div class="entry-head">
+            <div>
+              <strong>${escapeHtml(entry.meal_name || "Meal")}</strong>
+              <div class="entry-meta">
+                <span>${escapeHtml(formatTime(entry.timestamp))}</span>
+                ${entry.is_buffer_meal ? '<span class="tag">Buffer</span>' : ""}
+              </div>
+            </div>
+            <div class="compact-actions">
+              <button class="ghost" type="button" data-calendar-action="edit-nutrition" data-id="${entry.id}">Edit</button>
+              <button class="ghost" type="button" data-calendar-action="delete-nutrition" data-id="${entry.id}">Delete</button>
+            </div>
+          </div>
+          <div class="entry-meta">
+            ${entry.est_carbs_g != null ? `<span>Carbs ${escapeHtml(entry.est_carbs_g)} g</span>` : ""}
+            ${entry.est_protein_g != null ? `<span>Protein ${escapeHtml(entry.est_protein_g)} g</span>` : ""}
+            ${entry.est_fat_g != null ? `<span>Fat ${escapeHtml(entry.est_fat_g)} g</span>` : ""}
+          </div>
+          ${entry.comments ? `<div class="entry-comments">${escapeHtml(entry.comments)}</div>` : '<div class="note">No comments</div>'}
+        </article>
+      `).join("");
+    }
+
+    function renderGlucose(entries) {
+      glucoseCountNode.textContent = String(entries.length);
+      if (!entries.length) {
+        glucoseListNode.innerHTML = '<div class="empty">No CGM readings for this day.</div>';
+        return;
+      }
+
+      const values = entries
+        .map((entry) => Number(entry.glucose_mgdl))
+        .filter((value) => Number.isFinite(value));
+
+      const high = values.length ? Math.max(...values) : null;
+      const low = values.length ? Math.min(...values) : null;
+      const avg = values.length
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
+        : null;
+
+      const chartSvg = buildGlucoseChartSvg(entries);
+      const sourceLabel = entries.find((entry) => entry.source_device)?.source_device || "FreeStyle Libre";
+
+      glucoseListNode.innerHTML = `
+        <div class="stats-row">
+          <div class="stat-tile">
+            <div class="stat-label">High</div>
+            <div class="stat-value">${high == null ? "—" : escapeHtml(formatGlucoseValue(high))}</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Low</div>
+            <div class="stat-value">${low == null ? "—" : escapeHtml(formatGlucoseValue(low))}</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Average</div>
+            <div class="stat-value">${avg == null ? "—" : escapeHtml(formatGlucoseValue(avg))}</div>
+          </div>
+          <div class="stat-tile">
+            <div class="stat-label">Samples</div>
+            <div class="stat-value">${escapeHtml(String(entries.length))}</div>
+          </div>
+        </div>
+        <div class="chart-wrap">
+          ${chartSvg}
+        </div>
+        <div class="note">Source: ${escapeHtml(sourceLabel)}. Use Admin for batch imports.</div>
+      `;
+    }
+
+    function renderWorkouts(entries) {
+      workoutCountNode.textContent = String(entries.length);
+      if (!entries.length) {
+        workoutListNode.innerHTML = '<div class="empty">No Apple Health workouts for this day.</div>';
+        return;
+      }
+
+      workoutListNode.innerHTML = entries.map((entry) => `
+        <article class="entry-card">
+          <div class="entry-head">
+            <div>
+              <strong>${escapeHtml(entry.activity_type || entry.workout_type || "Workout")}</strong>
+              <div class="entry-meta">
+                <span>${escapeHtml(formatTimeRange(entry.start_time, entry.end_time))}</span>
+                ${entry.source_name ? `<span>${escapeHtml(entry.source_name)}</span>` : ""}
+              </div>
+            </div>
+            <button class="ghost" type="button" data-calendar-action="delete-workout" data-id="${entry.id}">Delete</button>
+          </div>
+          <div class="entry-meta">
+            <span>Duration ${escapeHtml(formatDuration(entry.duration_seconds))}</span>
+            <span>Distance ${escapeHtml(formatDistance(entry.distance_meters))}</span>
+            ${entry.avg_hr != null ? `<span>HR ${escapeHtml(entry.avg_hr)} bpm</span>` : ""}
+            ${entry.avg_pace_sec_per_km != null ? `<span>Pace ${escapeHtml(formatPace(entry.avg_pace_sec_per_km))}</span>` : ""}
+            ${entry.elevation_ascended_meters != null ? `<span>Elevation ${escapeHtml(Math.round(entry.elevation_ascended_meters))} m</span>` : ""}
+            ${entry.calories_burned != null ? `<span>Calories ${escapeHtml(Math.round(entry.calories_burned))} kcal</span>` : ""}
+          </div>
+          ${entry.device ? `<div class="note">${escapeHtml(entry.device)}</div>` : ""}
+        </article>
+      `).join("");
+    }
+
+    function renderCalendar(payload) {
+      currentCalendarPayload = payload;
+      selectedCalendarDate = payload.date;
+      renderSchedule(payload);
+      renderNutrition(payload.health?.nutrition || []);
+      renderGlucose(payload.health?.glucose || []);
+      renderWorkouts(payload.health?.apple_health_workouts || []);
+    }
+
     async function loadSources() {
-      const sources = await api("/api/sources");
-      renderSources(sources);
+      renderSources(await api("/api/sources"));
+    }
+
+    function getInboxSearchParams() {
+      return {
+        q: inboxSearchQueryInput.value.trim(),
+        source: inboxSearchSourceInput.value.trim(),
+        label: inboxSearchLabelInput.value.trim(),
+        rating: inboxSearchRatingInput.value,
+        sort: inboxSearchSortInput.value,
+        limit: inboxSearchLimitInput.value
+      };
+    }
+
+    function applyInboxSearchParams(params) {
+      currentInboxSearch = { ...params };
+      inboxSearchQueryInput.value = params.q;
+      inboxSearchSourceInput.value = params.source;
+      inboxSearchLabelInput.value = params.label;
+      inboxSearchRatingInput.value = params.rating;
+      inboxSearchSortInput.value = params.sort;
+      inboxSearchLimitInput.value = params.limit;
+    }
+
+    function setInboxSearchExpanded(expanded) {
+      inboxSearchPanel.classList.toggle("is-collapsed", !expanded);
+      inboxSearchBody.hidden = !expanded;
+      inboxSearchToggleButton.setAttribute("aria-expanded", String(expanded));
+      inboxSearchToggleButton.textContent = expanded ? "Hide search" : "Show search";
+    }
+
+    async function loadInboxSearch(params = currentInboxSearch) {
+      const searchParams = new URLSearchParams();
+      if (params.q) searchParams.set("q", params.q);
+      if (params.source) searchParams.set("source", params.source);
+      if (params.label) searchParams.set("label", params.label);
+      if (params.rating) searchParams.set("rating", params.rating);
+      if (params.sort) searchParams.set("sort", params.sort);
+      if (params.limit) searchParams.set("limit", params.limit);
+
+      const items = await api(`/api/inbox/search${searchParams.toString() ? `?${searchParams}` : ""}`);
+      renderSearchResults(items);
+      return items;
     }
 
     async function loadInbox() {
@@ -660,9 +1394,8 @@
       `).join("");
     }
 
-    async function loadSchedule() {
-      const schedule = await api(`/api/schedule/today?date_value=${encodeURIComponent(selectedScheduleDate)}`);
-      renderSchedule(schedule);
+    async function loadCalendar() {
+      renderCalendar(await api(`/api/calendar/day?date_value=${encodeURIComponent(selectedCalendarDate)}`));
     }
 
     async function refreshInbox(message = "") {
@@ -671,6 +1404,7 @@
           setStatus(message);
         }
         await loadInbox();
+        await loadInboxSearch();
         setStatus(message);
       } catch (error) {
         setStatus(error.message);
@@ -682,7 +1416,7 @@
         if (message) {
           setStatus(message);
         }
-        await Promise.all([loadSources(), loadInbox(), loadSchedule()]);
+        await Promise.all([loadSources(), loadInbox(), loadInboxSearch(), loadCalendar()]);
         setStatus(message);
       } catch (error) {
         setStatus(error.message);
@@ -802,6 +1536,154 @@
       setStatus("Canceled source edit.");
     });
 
+    inboxSearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const params = getInboxSearchParams();
+      applyInboxSearchParams(params);
+      try {
+        await loadInboxSearch(params);
+        setStatus("Updated summary search.");
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    inboxSearchResetButton.addEventListener("click", async () => {
+      applyInboxSearchParams({
+        q: "",
+        source: "",
+        label: "",
+        rating: "",
+        sort: "recent",
+        limit: "10"
+      });
+      try {
+        await loadInboxSearch();
+        setStatus("Reset summary search.");
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    inboxSearchToggleButton.addEventListener("click", () => {
+      const expanded = inboxSearchBody.hidden;
+      setInboxSearchExpanded(expanded);
+    });
+
+    nutritionForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const wasEditing = editingNutritionId !== null;
+        const [hours, minutes] = nutritionTimeInput.value.split(":");
+        const timestamp = new Date(`${selectedCalendarDate}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`);
+        const payload = {
+          timestamp: timestamp.toISOString(),
+          meal_name: nutritionMealNameInput.value.trim() || null,
+          est_carbs_g: nutritionCarbsInput.value ? Number(nutritionCarbsInput.value) : null,
+          est_protein_g: nutritionProteinInput.value ? Number(nutritionProteinInput.value) : null,
+          est_fat_g: nutritionFatInput.value ? Number(nutritionFatInput.value) : null,
+          comments: nutritionCommentsInput.value.trim() || null,
+          is_buffer_meal: nutritionBufferInput.checked
+        };
+        if (editingNutritionId) {
+          await api(`/api/nutrition-events/${editingNutritionId}`, {
+            method: "PUT",
+            body: JSON.stringify(payload)
+          });
+        } else {
+          await api("/api/nutrition-events", {
+            method: "POST",
+            body: JSON.stringify(payload)
+          });
+        }
+        resetNutritionForm();
+        await loadCalendar();
+        setStatus(wasEditing ? "Updated nutrition entry." : "Added nutrition entry.");
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    nutritionCancelEditButton.addEventListener("click", () => {
+      resetNutritionForm();
+      setStatus("Canceled nutrition edit.");
+    });
+
+    glucoseImportForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = glucoseFileInput.files?.[0];
+      if (!file) {
+        setStatus("Choose a CGM CSV file first.");
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const result = await api("/api/glucose/import", { method: "POST", body: formData });
+        glucoseImportForm.reset();
+        await loadCalendar();
+        setStatus(`Imported ${result.loaded} Libre readings (${result.skipped} skipped).`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    appleHealthImportForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = appleHealthFileInput.files?.[0];
+      if (!file) {
+        setStatus("Choose an Apple Health export first.");
+        return;
+      }
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const result = await api("/api/apple-health-workouts/import", { method: "POST", body: formData });
+        appleHealthImportForm.reset();
+        await loadCalendar();
+        setStatus(`Imported ${result.imported} Apple Health workouts (${result.skipped} skipped).`);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
+    calendarViewNode.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-calendar-action]");
+      if (!button) {
+        return;
+      }
+
+      try {
+        if (button.dataset.calendarAction === "delete-nutrition") {
+          await api(`/api/nutrition-events/${button.dataset.id}`, { method: "DELETE" });
+          if (editingNutritionId === Number(button.dataset.id)) {
+            resetNutritionForm();
+          }
+          await loadCalendar();
+          setStatus("Deleted nutrition entry.");
+        } else if (button.dataset.calendarAction === "edit-nutrition") {
+          const entry = currentCalendarPayload?.health?.nutrition?.find((item) => String(item.id) === String(button.dataset.id));
+          if (entry) {
+            fillNutritionForm(entry);
+            setActiveView("calendar-view");
+            setStatus("Editing nutrition entry.");
+          }
+        } else if (button.dataset.calendarAction === "delete-glucose") {
+          await api(`/api/glucose/${encodeURIComponent(button.dataset.timestamp)}`, { method: "DELETE" });
+          await loadCalendar();
+          setStatus("Deleted CGM reading.");
+        } else if (button.dataset.calendarAction === "delete-workout") {
+          await api(`/api/apple-health-workouts/${button.dataset.id}`, { method: "DELETE" });
+          await loadCalendar();
+          setStatus("Deleted Apple Health workout.");
+        }
+      } catch (error) {
+        setStatus(error.message);
+      }
+    });
+
     runButton.addEventListener("click", async () => {
       try {
         setStatus("Running the daily pull...");
@@ -816,19 +1698,23 @@
       refreshAll("Refreshing dashboard...");
     });
 
+    calendarRefreshButton.addEventListener("click", () => {
+      loadCalendar().catch((error) => setStatus(error.message));
+    });
+
     schedulePrevButton.addEventListener("click", async () => {
-      changeScheduleDate(-1);
-      await loadSchedule();
+      changeCalendarDate(-1);
+      await loadCalendar();
     });
 
     scheduleTodayButton.addEventListener("click", async () => {
-      resetScheduleDate();
-      await loadSchedule();
+      resetCalendarDate();
+      await loadCalendar();
     });
 
     scheduleNextButton.addEventListener("click", async () => {
-      changeScheduleDate(1);
-      await loadSchedule();
+      changeCalendarDate(1);
+      await loadCalendar();
     });
 
     viewButtons.forEach((button) => {
@@ -838,6 +1724,8 @@
     });
 
     resetSourceForm();
+    resetNutritionForm();
+    setInboxSearchExpanded(false);
     refreshAll();
   </script>
 </body>

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Iterator
 from uuid import UUID
 
@@ -10,63 +10,6 @@ from psycopg import Connection, connect
 from psycopg.rows import dict_row
 
 from backend.config import Settings
-
-
-SCHEMA_STATEMENTS = (
-    "CREATE EXTENSION IF NOT EXISTS pgcrypto",
-    """
-    CREATE TABLE IF NOT EXISTS research_sources (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name TEXT NOT NULL,
-        category TEXT,
-        tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-        feed_url TEXT NOT NULL UNIQUE,
-        adapter_type TEXT NOT NULL DEFAULT 'rss',
-        source_weight INTEGER NOT NULL DEFAULT 1,
-        enabled BOOLEAN NOT NULL DEFAULT TRUE,
-        last_polled_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-    """,
-    """
-    ALTER TABLE research_sources
-    ADD COLUMN IF NOT EXISTS last_polled_at TIMESTAMPTZ
-    """,
-    """
-    ALTER TABLE research_sources
-    ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]
-    """,
-    """
-    UPDATE research_sources
-    SET tags = ARRAY[category]
-    WHERE category IS NOT NULL
-      AND category <> ''
-      AND COALESCE(array_length(tags, 1), 0) = 0
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS inbox_entries (
-        id BIGSERIAL PRIMARY KEY,
-        source_id UUID REFERENCES research_sources(id) ON DELETE SET NULL,
-        source_name TEXT NOT NULL,
-        title TEXT NOT NULL,
-        canonical_url TEXT NOT NULL UNIQUE,
-        article_url TEXT NOT NULL,
-        article_published_at TIMESTAMPTZ,
-        summary TEXT NOT NULL,
-        status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'read', 'dismissed')),
-        rating SMALLINT CHECK (rating BETWEEN 1 AND 5),
-        dismissed_at TIMESTAMPTZ,
-        read_at TIMESTAMPTZ,
-        discovered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        summarized_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_inbox_entries_active
-    ON inbox_entries (discovered_at DESC)
-    WHERE dismissed_at IS NULL
-    """,
-)
 
 
 @dataclass(frozen=True)
@@ -86,14 +29,6 @@ class SourceRecord:
 def get_connection(settings: Settings) -> Iterator[Connection]:
     with connect(settings.database_url, row_factory=dict_row) as conn:
         yield conn
-
-
-def initialize_database(settings: Settings) -> None:
-    with get_connection(settings) as conn:
-        with conn.cursor() as cur:
-            for statement in SCHEMA_STATEMENTS:
-                cur.execute(statement)
-        conn.commit()
 
 
 def fetch_enabled_sources(conn: Connection) -> list[SourceRecord]:
@@ -267,6 +202,363 @@ def update_source_last_polled_at(conn: Connection, source_id: UUID, polled_at: d
         )
 
 
+def _day_bounds(target_date: date) -> tuple[datetime, datetime]:
+    start = datetime.combine(target_date, datetime.min.time())
+    end = start + timedelta(days=1)
+    return start, end
+
+
+def list_glucose_readings(settings: Settings, start_at: datetime, end_at: datetime) -> list[dict]:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    timestamp,
+                    glucose_mgdl,
+                    source_device,
+                    serial_number,
+                    record_type,
+                    scan_glucose_mgdl,
+                    created_at
+                FROM glucose_readings
+                WHERE timestamp >= %s
+                  AND timestamp < %s
+                ORDER BY timestamp ASC
+                """,
+                (start_at, end_at),
+            )
+            return cur.fetchall()
+
+
+def upsert_glucose_reading(
+    conn: Connection,
+    *,
+    timestamp: datetime,
+    glucose_mgdl: int,
+    source_device: str,
+    serial_number: str,
+    record_type: int | None,
+    scan_glucose_mgdl: int | None,
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO glucose_readings (
+                timestamp,
+                glucose_mgdl,
+                source_device,
+                serial_number,
+                record_type,
+                scan_glucose_mgdl
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (timestamp) DO NOTHING
+            RETURNING timestamp
+            """,
+            (timestamp, glucose_mgdl, source_device, serial_number, record_type, scan_glucose_mgdl),
+        )
+        row = cur.fetchone()
+    return row is not None
+
+
+def delete_glucose_reading(settings: Settings, timestamp: datetime) -> dict | None:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM glucose_readings
+                WHERE timestamp = %s
+                RETURNING timestamp
+                """,
+                (timestamp,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
+def list_nutrition_events(settings: Settings, start_at: datetime, end_at: datetime) -> list[dict]:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal,
+                    created_at
+                FROM nutrition_events
+                WHERE timestamp >= %s
+                  AND timestamp < %s
+                ORDER BY timestamp DESC, id DESC
+                """,
+                (start_at, end_at),
+            )
+            return cur.fetchall()
+
+
+def insert_nutrition_event(
+    settings: Settings,
+    *,
+    timestamp: datetime,
+    meal_name: str | None,
+    est_carbs_g: float | None,
+    est_protein_g: float | None,
+    est_fat_g: float | None,
+    comments: str | None,
+    is_buffer_meal: bool,
+) -> dict:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO nutrition_events (
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING
+                    id,
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal,
+                    created_at
+                """,
+                (
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
+def update_nutrition_event(
+    settings: Settings,
+    event_id: int,
+    *,
+    timestamp: datetime,
+    meal_name: str | None,
+    est_carbs_g: float | None,
+    est_protein_g: float | None,
+    est_fat_g: float | None,
+    comments: str | None,
+    is_buffer_meal: bool,
+) -> dict | None:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE nutrition_events
+                SET
+                    timestamp = %s,
+                    meal_name = %s,
+                    est_carbs_g = %s,
+                    est_protein_g = %s,
+                    est_fat_g = %s,
+                    comments = %s,
+                    is_buffer_meal = %s
+                WHERE id = %s
+                RETURNING
+                    id,
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal,
+                    created_at
+                """,
+                (
+                    timestamp,
+                    meal_name,
+                    est_carbs_g,
+                    est_protein_g,
+                    est_fat_g,
+                    comments,
+                    is_buffer_meal,
+                    event_id,
+                ),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
+def delete_nutrition_event(settings: Settings, event_id: int) -> dict | None:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM nutrition_events
+                WHERE id = %s
+                RETURNING id
+                """,
+                (event_id,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
+def list_apple_health_workouts(settings: Settings, start_at: datetime, end_at: datetime) -> list[dict]:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    source_name,
+                    device,
+                    start_time,
+                    end_time,
+                    workout_type,
+                    activity_type,
+                    duration_seconds,
+                    distance_meters,
+                    avg_hr,
+                    avg_pace_sec_per_km,
+                    elevation_ascended_meters,
+                    calories_burned,
+                    created_at
+                FROM apple_health_workouts
+                WHERE start_time >= %s
+                  AND start_time < %s
+                ORDER BY start_time ASC, id ASC
+                """,
+                (start_at, end_at),
+            )
+            return cur.fetchall()
+
+
+def fetch_latest_apple_health_workout_start_time(conn: Connection, source_name: str | None = None) -> datetime | None:
+    with conn.cursor() as cur:
+        if source_name is None:
+            cur.execute(
+                """
+                SELECT MAX(start_time) AS latest_start_time
+                FROM apple_health_workouts
+                """
+            )
+        else:
+            cur.execute(
+                """
+                SELECT MAX(start_time) AS latest_start_time
+                FROM apple_health_workouts
+                WHERE source_name = %s
+                """,
+                (source_name,),
+            )
+        row = cur.fetchone()
+
+    return row["latest_start_time"] if row else None
+
+
+def upsert_apple_health_workout(
+    conn: Connection,
+    *,
+    source_name: str | None,
+    device: str | None,
+    start_time: datetime,
+    end_time: datetime,
+    workout_type: str | None,
+    activity_type: str | None,
+    duration_seconds: int | None,
+    distance_meters: float | None,
+    avg_hr: int | None,
+    avg_pace_sec_per_km: float | None,
+    elevation_ascended_meters: float | None,
+    calories_burned: float | None,
+) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO apple_health_workouts (
+                source_name,
+                device,
+                start_time,
+                end_time,
+                workout_type,
+                activity_type,
+                duration_seconds,
+                distance_meters,
+                avg_hr,
+                avg_pace_sec_per_km,
+                elevation_ascended_meters,
+                calories_burned
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (source_name, start_time) DO UPDATE
+            SET
+                device = COALESCE(EXCLUDED.device, apple_health_workouts.device),
+                end_time = COALESCE(EXCLUDED.end_time, apple_health_workouts.end_time),
+                workout_type = COALESCE(EXCLUDED.workout_type, apple_health_workouts.workout_type),
+                activity_type = COALESCE(EXCLUDED.activity_type, apple_health_workouts.activity_type),
+                duration_seconds = COALESCE(EXCLUDED.duration_seconds, apple_health_workouts.duration_seconds),
+                distance_meters = COALESCE(EXCLUDED.distance_meters, apple_health_workouts.distance_meters),
+                avg_hr = COALESCE(EXCLUDED.avg_hr, apple_health_workouts.avg_hr),
+                avg_pace_sec_per_km = COALESCE(EXCLUDED.avg_pace_sec_per_km, apple_health_workouts.avg_pace_sec_per_km),
+                elevation_ascended_meters = COALESCE(EXCLUDED.elevation_ascended_meters, apple_health_workouts.elevation_ascended_meters),
+                calories_burned = COALESCE(EXCLUDED.calories_burned, apple_health_workouts.calories_burned)
+            RETURNING id
+            """,
+            (
+                source_name,
+                device,
+                start_time,
+                end_time,
+                workout_type,
+                activity_type,
+                duration_seconds,
+                distance_meters,
+                avg_hr,
+                avg_pace_sec_per_km,
+                elevation_ascended_meters,
+                calories_burned,
+            ),
+        )
+        row = cur.fetchone()
+    return row is not None
+
+
+def delete_apple_health_workout(settings: Settings, workout_id: int) -> dict | None:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM apple_health_workouts
+                WHERE id = %s
+                RETURNING id
+                """,
+                (workout_id,),
+            )
+            row = cur.fetchone()
+        conn.commit()
+    return row
+
+
 def insert_inbox_entry(
     conn: Connection,
     *,
@@ -334,6 +626,92 @@ def list_active_inbox_entries(settings: Settings) -> list[dict]:
                   AND rating IS NULL
                 ORDER BY discovered_at DESC
                 """
+            )
+            return cur.fetchall()
+
+
+def search_inbox_entries(
+    settings: Settings,
+    *,
+    query: str | None = None,
+    source: str | None = None,
+    label: str | None = None,
+    rating: int | None = None,
+    sort: str = "recent",
+    limit: int = 10,
+) -> list[dict]:
+    clauses: list[str] = []
+    params: list[object] = []
+
+    if query:
+        clauses.append(
+            """
+            (
+                i.title ILIKE %s
+                OR i.summary ILIKE %s
+                OR i.article_url ILIKE %s
+                OR i.source_name ILIKE %s
+            )
+            """
+        )
+        pattern = f"%{query}%"
+        params.extend([pattern, pattern, pattern, pattern])
+
+    if source:
+        clauses.append("(i.source_name ILIKE %s OR rs.name ILIKE %s)")
+        pattern = f"%{source}%"
+        params.extend([pattern, pattern])
+
+    if label:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM unnest(COALESCE(rs.tags, ARRAY[]::TEXT[])) AS tag
+                WHERE tag ILIKE %s
+            )
+            """
+        )
+        params.append(f"%{label}%")
+
+    if rating is not None:
+        clauses.append("i.rating = %s")
+        params.append(rating)
+
+    where_clause = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    order_clause = (
+        "ORDER BY i.rating DESC NULLS LAST, i.discovered_at DESC"
+        if sort == "rank"
+        else "ORDER BY i.discovered_at DESC"
+    )
+    limit_value = max(1, min(limit, 50))
+
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    i.id,
+                    i.source_id,
+                    i.source_name,
+                    rs.tags AS source_tags,
+                    i.title,
+                    i.article_url,
+                    i.canonical_url,
+                    i.summary,
+                    i.status,
+                    i.rating,
+                    i.read_at,
+                    i.dismissed_at,
+                    i.discovered_at,
+                    i.article_published_at
+                FROM inbox_entries i
+                LEFT JOIN research_sources rs ON rs.id = i.source_id
+                {where_clause}
+                {order_clause}
+                LIMIT %s
+                """,
+                (*params, limit_value),
             )
             return cur.fetchall()
 
