@@ -1,11 +1,48 @@
 from __future__ import annotations
 
+import re
 from textwrap import dedent
 
 import requests
+from langsmith import traceable
 from opentelemetry import trace
 
 from backend.config import Settings
+
+
+def _remove_reasoning(text: str) -> str:
+    without_reasoning = re.sub(r"<think>.*?</think>", "", text, flags=re.IGNORECASE | re.DOTALL)
+    without_reasoning = re.sub(r"<think>.*$", "", without_reasoning, flags=re.IGNORECASE | re.DOTALL)
+    return without_reasoning.strip()
+
+
+@traceable(name="granite.summarize", run_type="llm")
+def _generate_summary(
+    prompt: str,
+    *,
+    ollama_base_url: str,
+    ollama_model: str,
+    ollama_timeout_seconds: int,
+) -> str:
+    response = requests.post(
+        f"{ollama_base_url.rstrip('/')}/api/generate",
+        json={
+            "model": ollama_model,
+            "prompt": prompt,
+            "stream": False,
+            "think": False,
+            "options": {"temperature": 0.2},
+        },
+        timeout=ollama_timeout_seconds,
+    )
+    response.raise_for_status()
+
+    payload = response.json()
+    summary = _remove_reasoning(payload.get("response", ""))
+    if not summary:
+        raise RuntimeError("Ollama returned an empty summary")
+
+    return summary
 
 
 class OllamaSummarizer:
@@ -44,22 +81,20 @@ class OllamaSummarizer:
             span.set_attribute("article.url", article_url)
             span.set_attribute("gen_ai.request.prompt_chars", len(prompt))
 
-            response = requests.post(
-                f"{self.settings.ollama_base_url.rstrip('/')}/api/generate",
-                json={
-                    "model": self.settings.ollama_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.2},
+            summary = _generate_summary(
+                prompt,
+                ollama_base_url=self.settings.ollama_base_url,
+                ollama_model=self.settings.ollama_model,
+                ollama_timeout_seconds=self.settings.ollama_timeout_seconds,
+                langsmith_extra={
+                    "metadata": {
+                        "article.source_name": source_name,
+                        "article.url": article_url,
+                        "gen_ai.request.prompt_chars": len(prompt),
+                    },
+                    "tags": ["ollama", "granite"],
                 },
-                timeout=self.settings.ollama_timeout_seconds,
             )
-            response.raise_for_status()
-
-            payload = response.json()
-            summary = payload.get("response", "").strip()
-            if not summary:
-                raise RuntimeError("Ollama returned an empty summary")
 
             span.set_attribute("gen_ai.response.chars", len(summary))
             span.add_event(
