@@ -101,9 +101,10 @@ Canonical URLs are the deduplication key. Tracking parameters such as `utm_*`,
 
 ## Validation
 
-There is no checked-in automated test suite yet. The current lightweight
-backend check is:
-
 ```bash
-PYTHONPATH=. python3 -m compileall backend
+pytest
 ```
+
+Runs the suite in `tests/`: pure unit tests, a Temporal workflow test using
+time-skipping (no real server needed), and activity tests against a
+freshly created and dropped Postgres test database.
