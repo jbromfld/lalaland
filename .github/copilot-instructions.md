@@ -7,7 +7,7 @@
 Install backend dependencies:
 
 ```bash
-python3 -m pip install -r backend/requirements.txt
+python3 -m pip install -e ".[dev]"
 ```
 
 Run the app locally:
@@ -18,7 +18,7 @@ uvicorn backend.main:app --reload
 
 ### Docker runtime
 
-Start the frontend and backend containers while using Postgres and Ollama on the host:
+Start the frontend, backend, and Temporal worker containers while using Postgres, Ollama, and Temporal on the host:
 
 ```bash
 docker compose up --build
@@ -32,18 +32,19 @@ docker-compose up --build
 
 ### Current validation command
 
-There is no checked-in test suite or lint configuration yet. The current lightweight backend validation is:
-
 ```bash
-PYTHONPATH=. python3 -m compileall backend
+pytest
 ```
 
-There is currently no single-test command because no automated tests are checked in.
+Runs the suite in `tests/` (pure unit tests plus a Temporal workflow test using
+time-skipping, no real server needed). There is no lint configuration yet.
 
 ## High-level architecture
 
-- The app is a **single FastAPI backend** in `backend/main.py`. Startup uses the FastAPI lifespan hook to initialize telemetry, create the Postgres schema, and start the in-process APScheduler job.
-- The scheduled flow lives in `backend/services/pipeline.py`. The daily job loads enabled rows from `research_sources`, pulls feed entries through `backend/adapters/rss.py`, canonicalizes URLs with `backend/services/discovery.py`, fetches article text through `backend/adapters/html.py`, summarizes with Ollama Granite in `backend/services/summarization.py`, and inserts new inbox records into Postgres.
+- The app is a **FastAPI backend** in `backend/main.py` plus a separate **Temporal worker** process (`backend/temporal/worker.py`). Startup uses the FastAPI lifespan hook to initialize telemetry, create the Postgres schema, connect to Temporal, and register a server-side Schedule (`backend/temporal/client.py`) that replaced the old in-process APScheduler job.
+- The scheduled flow is `DailyBriefingWorkflow` (`backend/temporal/workflows.py`), executed by the worker against per-source activities in `backend/temporal/activities.py`. Each source is its own activity with its own retries, instead of one all-or-nothing transaction. Activities load enabled rows from `research_sources`, pull feed entries through `backend/adapters/rss.py`, canonicalize URLs with `backend/services/discovery.py`, fetch article text through `backend/adapters/html.py`, summarize with Ollama Granite in `backend/services/summarization.py`, and insert new inbox records into Postgres.
+- `POST /api/jobs/run-now` starts the same workflow via the Temporal client and awaits its result — it no longer runs the pipeline in-thread.
+- The Temporal server itself (with Postgres persistence) is a separate shared local service; see the sibling `temporal` repo. `TEMPORAL_ADDRESS`/`TEMPORAL_NAMESPACE` in `.env` point at it.
 - Persistence is split across two tables in `backend/db.py`:
   - `research_sources` stores feed configuration and source weighting.
   - `inbox_entries` stores only summary metadata and user actions. **Raw article bodies are intentionally transient and should not be persisted.**
@@ -60,4 +61,4 @@ There is currently no single-test command because no automated tests are checked
 - The current product behavior is that inbox items remain visible until they are dismissed or both read and rated. Any change to inbox queries should preserve that workflow unless intentionally changing product behavior.
 - The frontend relies on **same-origin relative fetches** like `/api/inbox` and `/api/sources`. If you change service boundaries or ports, preserve that contract or update the nginx proxy and frontend together.
 - Frontend rendering currently escapes text before injecting HTML and only allows `http`/`https` links. Preserve that safety pattern when changing dashboard rendering.
-- The backend is intentionally synchronous today: `requests`, `psycopg`, and APScheduler all run in-process. Follow the existing pattern unless you are intentionally redesigning concurrency.
+- Activities are intentionally synchronous (`requests`, `psycopg`) and run in a `ThreadPoolExecutor` inside the async Temporal worker. Follow the existing pattern unless you are intentionally redesigning concurrency. Workflow files (`backend/temporal/workflows.py`) must stay deterministic — no direct I/O, use `workflow.now()` instead of `datetime.now()`, and wrap imports of modules with side effects in `workflow.unsafe.imports_passed_through()`.

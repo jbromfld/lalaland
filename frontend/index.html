@@ -68,6 +68,15 @@
       gap: 10px;
     }
 
+    .sidebar .actions {
+      display: grid;
+      gap: 10px;
+    }
+
+    .sidebar .actions button {
+      text-align: left;
+    }
+
     .nav-button,
     button {
       border: 0;
@@ -133,8 +142,7 @@
     }
 
     .grid,
-    .source-list,
-    .schedule-list {
+    .source-list {
       display: grid;
       gap: 16px;
     }
@@ -226,8 +234,7 @@
       margin: 0;
     }
 
-    .source-card,
-    .schedule-card {
+    .source-card {
       border: 1px solid rgba(148, 163, 184, 0.2);
       border-radius: 14px;
       padding: 16px;
@@ -254,24 +261,6 @@
 
     .disabled {
       opacity: 0.7;
-    }
-
-    .schedule-time {
-      color: #7dd3fc;
-      font-weight: 700;
-    }
-
-    .schedule-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-
-    .date-label {
-      font-weight: 700;
-      color: #e2e8f0;
     }
 
     .headline {
@@ -317,7 +306,7 @@
         <div>
           <h1>Daily Research Briefing</h1>
           <div class="headline">
-            <p>Manage sources, review summaries, and check today’s calendar in one place.</p>
+            <p>Manage sources and review summaries in one place.</p>
             <span class="count-pill" id="inbox-count">0</span>
           </div>
         </div>
@@ -325,11 +314,9 @@
         <nav class="nav-list">
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
-          <button class="nav-button" type="button" data-view-target="schedule-view">Today's Schedule</button>
         </nav>
 
         <div class="actions">
-          <button class="ghost" id="refresh-button" type="button">Refresh</button>
           <button class="primary" id="run-button" type="button">Run daily pull now</button>
         </div>
 
@@ -395,24 +382,6 @@
 
           <div class="grid" id="research"></div>
         </section>
-
-        <section class="panel view" id="schedule-view">
-          <div class="view-header">
-            <div>
-              <h2>Today's schedule</h2>
-              <p>Daily events pulled from your configured Google Calendar ICS feed.</p>
-            </div>
-          </div>
-
-          <div class="schedule-toolbar">
-            <button class="ghost" id="schedule-prev" type="button">Previous day</button>
-            <button class="ghost" id="schedule-today" type="button">Today</button>
-            <button class="ghost" id="schedule-next" type="button">Next day</button>
-            <span class="date-label" id="schedule-date-label"></span>
-          </div>
-
-          <div class="schedule-list" id="schedule-list"></div>
-        </section>
       </section>
     </div>
   </main>
@@ -420,10 +389,8 @@
   <script>
     const researchNode = document.getElementById("research");
     const sourceListNode = document.getElementById("source-list");
-    const scheduleListNode = document.getElementById("schedule-list");
     const statusNode = document.getElementById("status");
     const runButton = document.getElementById("run-button");
-    const refreshButton = document.getElementById("refresh-button");
     const sourceForm = document.getElementById("source-form");
     const sourceIdInput = document.getElementById("source-id");
     const sourceNameInput = document.getElementById("source-name");
@@ -434,17 +401,12 @@
     const sourceEnabledInput = document.getElementById("source-enabled");
     const sourceSubmitButton = document.getElementById("source-submit");
     const sourceCancelButton = document.getElementById("source-cancel");
-    const schedulePrevButton = document.getElementById("schedule-prev");
-    const scheduleTodayButton = document.getElementById("schedule-today");
-    const scheduleNextButton = document.getElementById("schedule-next");
-    const scheduleDateLabel = document.getElementById("schedule-date-label");
     const inboxCountNode = document.getElementById("inbox-count");
     const inboxNavCountNode = document.getElementById("inbox-nav-count");
     const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
     const views = Array.from(document.querySelectorAll(".view"));
 
     let sourcesCache = [];
-    let selectedScheduleDate = new Date().toISOString().slice(0, 10);
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -507,30 +469,6 @@
       inboxNavCountNode.textContent = `(${count})`;
     }
 
-    function renderEmptySchedule(message) {
-      scheduleListNode.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
-    }
-
-    function changeScheduleDate(days) {
-      const current = new Date(`${selectedScheduleDate}T12:00:00`);
-      current.setDate(current.getDate() + days);
-      selectedScheduleDate = current.toISOString().slice(0, 10);
-    }
-
-    function resetScheduleDate() {
-      selectedScheduleDate = new Date().toISOString().slice(0, 10);
-    }
-
-    function formatScheduleDateLabel(value) {
-      const date = new Date(`${value}T12:00:00`);
-      return new Intl.DateTimeFormat([], {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric"
-      }).format(date);
-    }
-
     function resetSourceForm() {
       sourceForm.reset();
       sourceIdInput.value = "";
@@ -585,45 +523,6 @@
       `).join("");
     }
 
-    function formatScheduleTime(event) {
-      if (event.all_day) {
-        return "All day";
-      }
-
-      const formatter = new Intl.DateTimeFormat([], {
-        hour: "numeric",
-        minute: "2-digit"
-      });
-      const start = event.start ? formatter.format(new Date(event.start)) : "";
-      const end = event.end ? formatter.format(new Date(event.end)) : "";
-      return end ? `${start} - ${end}` : start;
-    }
-
-    function renderSchedule(payload) {
-      selectedScheduleDate = payload.date;
-      scheduleDateLabel.textContent = formatScheduleDateLabel(payload.date);
-
-      if (!payload.configured) {
-        renderEmptySchedule("Set GOOGLE_CALENDAR_ICS_URL in .env to show today’s schedule.");
-        return;
-      }
-
-      if (!payload.events.length) {
-        renderEmptySchedule("No events scheduled today.");
-        return;
-      }
-
-      scheduleListNode.innerHTML = payload.events.map((event) => `
-        <article class="schedule-card">
-          <div class="schedule-time">${escapeHtml(formatScheduleTime(event))}</div>
-          <strong>${escapeHtml(event.title)}</strong>
-          ${event.location ? `<div class="meta">${escapeHtml(event.location)}</div>` : ""}
-          ${event.description ? `<div class="meta">${escapeHtml(event.description)}</div>` : ""}
-          ${event.url ? `<a href="${safeUrl(event.url)}" target="_blank" rel="noreferrer noopener">Open event link</a>` : ""}
-        </article>
-      `).join("");
-    }
-
     async function loadSources() {
       const sources = await api("/api/sources");
       renderSources(sources);
@@ -660,11 +559,6 @@
       `).join("");
     }
 
-    async function loadSchedule() {
-      const schedule = await api(`/api/schedule/today?date_value=${encodeURIComponent(selectedScheduleDate)}`);
-      renderSchedule(schedule);
-    }
-
     async function refreshInbox(message = "") {
       try {
         if (message) {
@@ -682,7 +576,7 @@
         if (message) {
           setStatus(message);
         }
-        await Promise.all([loadSources(), loadInbox(), loadSchedule()]);
+        await Promise.all([loadSources(), loadInbox()]);
         setStatus(message);
       } catch (error) {
         setStatus(error.message);
@@ -810,25 +704,6 @@
       } catch (error) {
         setStatus(error.message);
       }
-    });
-
-    refreshButton.addEventListener("click", () => {
-      refreshAll("Refreshing dashboard...");
-    });
-
-    schedulePrevButton.addEventListener("click", async () => {
-      changeScheduleDate(-1);
-      await loadSchedule();
-    });
-
-    scheduleTodayButton.addEventListener("click", async () => {
-      resetScheduleDate();
-      await loadSchedule();
-    });
-
-    scheduleNextButton.addEventListener("click", async () => {
-      changeScheduleDate(1);
-      await loadSchedule();
     });
 
     viewButtons.forEach((button) => {
