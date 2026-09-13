@@ -11,8 +11,6 @@ class Settings:
     ollama_base_url: str
     ollama_model: str
     ollama_timeout_seconds: int
-    google_calendar_ics_url: str
-    google_calendar_timezone: str
     schedule_hour: int
     schedule_minute: int
     schedule_timezone: str
@@ -30,8 +28,6 @@ def load_settings() -> Settings:
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
         ollama_model=os.getenv("OLLAMA_MODEL", "granite3.3:8b"),
         ollama_timeout_seconds=int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120")),
-        google_calendar_ics_url=os.getenv("GOOGLE_CALENDAR_ICS_URL", ""),
-        google_calendar_timezone=os.getenv("GOOGLE_CALENDAR_TIMEZONE", "local"),
         schedule_hour=int(os.getenv("SCHEDULE_HOUR", "6")),
         schedule_minute=int(os.getenv("SCHEDULE_MINUTE", "0")),
         schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", "local"),

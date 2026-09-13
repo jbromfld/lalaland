@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, HTTPException
 from psycopg import IntegrityError
@@ -21,23 +21,21 @@ from backend.db import (
     rate_inbox_entry,
     update_source,
 )
-from backend.scheduler import start as start_scheduler
-from backend.scheduler import stop as stop_scheduler
-from backend.services.calendar import fetch_schedule_for_date
-from backend.services.pipeline import run_daily_pipeline
 from backend.telemetry import setup_telemetry
+from backend.temporal.client import DAILY_BRIEFING_WORKFLOW_ID, TASK_QUEUE, connect, ensure_daily_briefing_schedule
+from backend.temporal.workflows import DailyBriefingWorkflow
 
 
 settings = load_settings()
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(app: FastAPI):
     setup_telemetry(settings.service_name)
     initialize_database(settings)
-    start_scheduler(settings, lambda: run_daily_pipeline(settings))
+    app.state.temporal_client = await connect()
+    await ensure_daily_briefing_schedule(app.state.temporal_client, settings)
     yield
-    stop_scheduler()
 
 
 app = FastAPI(title=settings.app_title, lifespan=lifespan)
@@ -104,11 +102,6 @@ def sources() -> list[dict]:
     return list_sources(settings)
 
 
-@app.get("/api/schedule/today")
-def todays_schedule(date_value: date | None = None) -> dict:
-    return fetch_schedule_for_date(settings, date_value)
-
-
 @app.post("/api/sources")
 def create_source_route(request: SourceRequest) -> dict:
     try:
@@ -163,5 +156,14 @@ def rate(entry_id: int, request: RatingRequest) -> dict:
 
 
 @app.post("/api/jobs/run-now")
-def run_now() -> dict[str, int]:
-    return run_daily_pipeline(settings)
+async def run_now() -> dict[str, int]:
+    result = await app.state.temporal_client.execute_workflow(
+        DailyBriefingWorkflow.run,
+        id=f"{DAILY_BRIEFING_WORKFLOW_ID}-manual-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}",
+        task_queue=TASK_QUEUE,
+    )
+    return {
+        "sources_processed": result.sources_processed,
+        "entries_seen": result.entries_seen,
+        "entries_created": result.entries_created,
+    }
