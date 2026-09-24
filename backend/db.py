@@ -21,7 +21,6 @@ SCHEMA_STATEMENTS = (
         category TEXT,
         tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
         feed_url TEXT NOT NULL UNIQUE,
-        adapter_type TEXT NOT NULL DEFAULT 'rss',
         source_weight INTEGER NOT NULL DEFAULT 1,
         enabled BOOLEAN NOT NULL DEFAULT TRUE,
         last_polled_at TIMESTAMPTZ,
@@ -36,6 +35,7 @@ SCHEMA_STATEMENTS = (
     ALTER TABLE research_sources
     ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]
     """,
+    "ALTER TABLE research_sources DROP COLUMN IF EXISTS adapter_type",
     """
     UPDATE research_sources
     SET tags = ARRAY[category]
@@ -76,7 +76,6 @@ class SourceRecord:
     category: str | None
     tags: list[str]
     feed_url: str
-    adapter_type: str
     source_weight: int
     enabled: bool
     last_polled_at: datetime | None
@@ -100,7 +99,7 @@ def fetch_enabled_sources(conn: Connection) -> list[SourceRecord]:
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT id, name, category, tags, feed_url, adapter_type, source_weight, enabled, last_polled_at
+            SELECT id, name, category, tags, feed_url, source_weight, enabled, last_polled_at
             FROM research_sources
             WHERE enabled = TRUE
             ORDER BY source_weight DESC, name ASC
@@ -122,7 +121,6 @@ def list_sources(settings: Settings) -> list[dict]:
                     category,
                     tags,
                     feed_url,
-                    adapter_type,
                     source_weight,
                     enabled,
                     last_polled_at,
@@ -140,7 +138,6 @@ def create_source(
     name: str,
     tags: list[str],
     feed_url: str,
-    adapter_type: str,
     source_weight: int,
     enabled: bool,
 ) -> dict:
@@ -153,24 +150,22 @@ def create_source(
                     category,
                     tags,
                     feed_url,
-                    adapter_type,
                     source_weight,
                     enabled
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING
                     id,
                     name,
                     category,
                     tags,
                     feed_url,
-                    adapter_type,
                     source_weight,
                     enabled,
                     last_polled_at,
                     created_at
                 """,
-                (name, tags[0] if tags else None, tags, feed_url, adapter_type, source_weight, enabled),
+                (name, tags[0] if tags else None, tags, feed_url, source_weight, enabled),
             )
             row = cur.fetchone()
         conn.commit()
@@ -184,7 +179,6 @@ def update_source(
     name: str,
     tags: list[str],
     feed_url: str,
-    adapter_type: str,
     source_weight: int,
     enabled: bool,
 ) -> dict | None:
@@ -198,7 +192,6 @@ def update_source(
                     category = %s,
                     tags = %s,
                     feed_url = %s,
-                    adapter_type = %s,
                     source_weight = %s,
                     enabled = %s
                 WHERE id = %s
@@ -208,13 +201,12 @@ def update_source(
                     category,
                     tags,
                     feed_url,
-                    adapter_type,
                     source_weight,
                     enabled,
                     last_polled_at,
                     created_at
                 """,
-                (name, tags[0] if tags else None, tags, feed_url, adapter_type, source_weight, enabled, source_id),
+                (name, tags[0] if tags else None, tags, feed_url, source_weight, enabled, source_id),
             )
             row = cur.fetchone()
         conn.commit()

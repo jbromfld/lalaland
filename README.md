@@ -27,7 +27,7 @@ The system is intentionally small and local:
     in the Temporal Web UI. This replaced an in-process APScheduler thread
     that silently died with the FastAPI process. See the shared Temporal
     server setup in the `temporal` repo for the server/Postgres side of this.
-- **Discovery:** RSS and HTML adapters with canonical URL deduplication
+- **Discovery:** RSS feeds with canonical URL deduplication and article summaries
 - **Summarization:** Ollama, using `granite3.3:8b` by default
 - **Persistence:** Postgres stores source configuration and inbox metadata;
     raw article bodies are transient

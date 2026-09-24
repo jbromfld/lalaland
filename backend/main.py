@@ -50,7 +50,6 @@ class SourceRequest(BaseModel):
     name: str = Field(min_length=1)
     tags: list[str] = Field(default_factory=list)
     feed_url: str = Field(min_length=1)
-    adapter_type: str = Field(min_length=1, default="rss")
     source_weight: int = Field(default=1, ge=0)
     enabled: bool = True
 
@@ -76,7 +75,6 @@ def _normalize_source_request(request: SourceRequest) -> dict:
         "name": request.name.strip(),
         "tags": tags,
         "feed_url": request.feed_url.strip(),
-        "adapter_type": request.adapter_type.strip(),
         "source_weight": request.source_weight,
         "enabled": request.enabled,
     }

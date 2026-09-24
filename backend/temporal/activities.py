@@ -7,7 +7,6 @@ from uuid import UUID
 import requests
 from temporalio import activity
 
-from backend.adapters.html import HTMLAdapter
 from backend.adapters.rss import RSSAdapter
 from backend.config import load_settings
 from backend.db import (
@@ -41,7 +40,6 @@ def list_enabled_sources() -> list[SourceInput]:
             last_polled_at=source.last_polled_at.isoformat() if source.last_polled_at else None,
         )
         for source in sources
-        if source.adapter_type == "rss"
     ]
 
 
@@ -49,7 +47,6 @@ def list_enabled_sources() -> list[SourceInput]:
 def process_source(input: ProcessSourceInput) -> ProcessSourceResult:
     settings = load_settings()
     rss_adapter = RSSAdapter()
-    html_adapter = HTMLAdapter()
     summarizer = OllamaSummarizer(settings)
 
     pipeline_started_at = datetime.fromisoformat(input.pipeline_started_at)
@@ -77,13 +74,6 @@ def process_source(input: ProcessSourceInput) -> ProcessSourceResult:
             entry = canonical_to_entry[canonical_url]
             article_title = entry.title
             article_text = (entry.summary or "").strip()
-
-            try:
-                extracted = html_adapter.extract_article(entry.url)
-                article_title = extracted["title"] or article_title
-                article_text = extracted["text"] or article_text
-            except requests.RequestException as exc:
-                logger.warning("Article fetch failed for %s: %s", entry.url, exc)
 
             if not article_text:
                 logger.warning("Skipping %s because no article text was available", entry.url)

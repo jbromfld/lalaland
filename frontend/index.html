@@ -348,13 +348,6 @@
                 <input id="source-feed-url" name="feed_url" type="url" required />
               </label>
               <label>
-                Adapter
-                <select id="source-adapter-type" name="adapter_type">
-                  <option value="rss">rss</option>
-                  <option value="html">html</option>
-                </select>
-              </label>
-              <label>
                 Weight
                 <input id="source-weight" name="source_weight" type="number" min="0" value="1" required />
               </label>
@@ -396,7 +389,6 @@
     const sourceNameInput = document.getElementById("source-name");
     const sourceTagsInput = document.getElementById("source-tags");
     const sourceFeedUrlInput = document.getElementById("source-feed-url");
-    const sourceAdapterTypeInput = document.getElementById("source-adapter-type");
     const sourceWeightInput = document.getElementById("source-weight");
     const sourceEnabledInput = document.getElementById("source-enabled");
     const sourceSubmitButton = document.getElementById("source-submit");
@@ -474,7 +466,6 @@
       sourceIdInput.value = "";
       sourceEnabledInput.checked = true;
       sourceWeightInput.value = "1";
-      sourceAdapterTypeInput.value = "rss";
       sourceSubmitButton.textContent = "Add source";
       sourceCancelButton.hidden = true;
     }
@@ -484,7 +475,6 @@
       sourceNameInput.value = source.name;
       sourceTagsInput.value = (source.tags || []).join(", ");
       sourceFeedUrlInput.value = source.feed_url;
-      sourceAdapterTypeInput.value = source.adapter_type;
       sourceWeightInput.value = String(source.source_weight);
       sourceEnabledInput.checked = source.enabled;
       sourceSubmitButton.textContent = "Save changes";
@@ -505,7 +495,6 @@
             <div>
               <strong>${escapeHtml(source.name)}</strong>
               <div class="source-meta">
-                <span class="tag">${escapeHtml(source.adapter_type)}</span>
                 <span class="tag">weight ${escapeHtml(source.source_weight)}</span>
                 <span class="tag">${source.enabled ? "enabled" : "disabled"}</span>
                 ${(source.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
@@ -634,7 +623,6 @@
               name: source.name,
               tags: source.tags || [],
               feed_url: source.feed_url,
-              adapter_type: source.adapter_type,
               source_weight: source.source_weight,
               enabled: !source.enabled
             })
@@ -665,7 +653,6 @@
           .map((tag) => tag.trim())
           .filter(Boolean),
         feed_url: sourceFeedUrlInput.value.trim(),
-        adapter_type: sourceAdapterTypeInput.value,
         source_weight: Number(sourceWeightInput.value),
         enabled: sourceEnabledInput.checked
       };
