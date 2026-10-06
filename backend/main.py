@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from psycopg import IntegrityError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,9 +16,11 @@ from backend.db import (
     dismiss_inbox_entry,
     initialize_database,
     list_active_inbox_entries,
+    list_history_sources,
     list_sources,
     mark_inbox_entry_read,
     rate_inbox_entry,
+    search_inbox_history,
     update_source,
 )
 from backend.telemetry import setup_telemetry
@@ -93,6 +95,27 @@ def health() -> dict[str, str]:
 @app.get("/api/inbox")
 def inbox() -> list[dict]:
     return list_active_inbox_entries(settings)
+
+
+@app.get("/api/history")
+def history(
+    days: int | None = Query(default=None, ge=1, le=3650),
+    source: str | None = None,
+    keyword: str | None = Query(default=None, max_length=200),
+    rating: int | None = Query(default=None, ge=1, le=5),
+) -> list[dict]:
+    return search_inbox_history(
+        settings,
+        days=days,
+        source=_normalize_optional_text(source),
+        keyword=_normalize_optional_text(keyword),
+        rating=rating,
+    )
+
+
+@app.get("/api/history/sources")
+def history_sources() -> list[str]:
+    return list_history_sources(settings)
 
 
 @app.get("/api/sources")

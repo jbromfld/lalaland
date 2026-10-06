@@ -88,9 +88,11 @@
     }
 
     .nav-button {
+      display: block;
       background: #172554;
       color: #dbeafe;
       text-align: left;
+      text-decoration: none;
     }
 
     .nav-button.is-active {
@@ -314,6 +316,7 @@
         <nav class="nav-list">
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
+          <button class="nav-button" type="button" data-view-target="search-view">Search</button>
         </nav>
 
         <div class="actions">
@@ -375,6 +378,53 @@
 
           <div class="grid" id="research"></div>
         </section>
+
+        <section class="panel view" id="search-view">
+          <div class="view-header">
+            <div>
+              <h2>Search historical records</h2>
+              <p>Search saved summaries, including items already read, rated, or dismissed.</p>
+            </div>
+          </div>
+
+          <form id="history-search-form">
+            <div class="form-grid">
+              <label>
+                Last n days
+                <input id="history-days" name="days" type="number" min="1" max="3650" placeholder="Any time" />
+              </label>
+              <label>
+                Source
+                <select id="history-source" name="source">
+                  <option value="">All sources</option>
+                </select>
+              </label>
+              <label>
+                Keyword
+                <input id="history-keyword" name="keyword" type="search" maxlength="200" placeholder="Title or summary" />
+              </label>
+              <label>
+                Rating
+                <select id="history-rating" name="rating">
+                  <option value="">Any rating</option>
+                  <option value="1">1 star</option>
+                  <option value="2">2 stars</option>
+                  <option value="3">3 stars</option>
+                  <option value="4">4 stars</option>
+                  <option value="5">5 stars</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button class="primary" type="submit">Search</button>
+              <button class="ghost" id="history-search-clear" type="button">Clear</button>
+              <span id="history-search-status" role="status"></span>
+            </div>
+          </form>
+          <div class="grid" id="history-results">
+            <div class="empty">Choose filters and select Search to find saved records.</div>
+          </div>
+        </section>
       </section>
     </div>
   </main>
@@ -395,10 +445,19 @@
     const sourceCancelButton = document.getElementById("source-cancel");
     const inboxCountNode = document.getElementById("inbox-count");
     const inboxNavCountNode = document.getElementById("inbox-nav-count");
+    const historySearchForm = document.getElementById("history-search-form");
+    const historyDaysInput = document.getElementById("history-days");
+    const historySourceSelect = document.getElementById("history-source");
+    const historyKeywordInput = document.getElementById("history-keyword");
+    const historyRatingSelect = document.getElementById("history-rating");
+    const historySearchStatusNode = document.getElementById("history-search-status");
+    const historyResultsNode = document.getElementById("history-results");
+    const historySearchClearButton = document.getElementById("history-search-clear");
     const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
     const views = Array.from(document.querySelectorAll(".view"));
 
     let sourcesCache = [];
+    let historySourcesLoaded = false;
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -516,6 +575,70 @@
       const sources = await api("/api/sources");
       renderSources(sources);
     }
+
+    async function loadHistorySources() {
+      if (historySourcesLoaded) {
+        return;
+      }
+      const sources = await api("/api/history/sources");
+      historySourceSelect.innerHTML = '<option value="">All sources</option>' + sources.map((source) => (
+        `<option value="${escapeHtml(source)}">${escapeHtml(source)}</option>`
+      )).join("");
+      historySourcesLoaded = true;
+    }
+
+    function renderHistoryResults(items) {
+      if (!items.length) {
+        historyResultsNode.innerHTML = '<div class="empty">No historical records match these filters.</div>';
+        return;
+      }
+
+      historyResultsNode.innerHTML = items.map((item) => {
+        const recordDate = item.article_published_at || item.discovered_at;
+        const rating = item.rating === null ? "Not rated" : `${item.rating} / 5`;
+        return `
+          <article class="card">
+            <div class="card-top">
+              <div>
+                <div class="source">${escapeHtml(item.source_name)}</div>
+                <strong>${escapeHtml(item.title)}</strong>
+              </div>
+              <span>${escapeHtml(item.status)}</span>
+            </div>
+            <div class="summary">${escapeHtml(item.summary)}</div>
+            <div class="source-meta">
+              <span>${escapeHtml(new Date(recordDate).toLocaleString())}</span>
+              <span>Rating: ${escapeHtml(rating)}</span>
+              <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open source</a>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    historySearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const params = new URLSearchParams();
+      if (historyDaysInput.value) params.set("days", historyDaysInput.value);
+      if (historySourceSelect.value) params.set("source", historySourceSelect.value);
+      if (historyKeywordInput.value.trim()) params.set("keyword", historyKeywordInput.value.trim());
+      if (historyRatingSelect.value) params.set("rating", historyRatingSelect.value);
+
+      try {
+        historySearchStatusNode.textContent = "Searching...";
+        const items = await api(`/api/history?${params.toString()}`);
+        renderHistoryResults(items);
+        historySearchStatusNode.textContent = `${items.length} record${items.length === 1 ? "" : "s"} found.`;
+      } catch (error) {
+        historySearchStatusNode.textContent = error.message;
+      }
+    });
+
+    historySearchClearButton.addEventListener("click", () => {
+      historySearchForm.reset();
+      historySearchStatusNode.textContent = "";
+      historyResultsNode.innerHTML = '<div class="empty">Choose filters and select Search to find saved records.</div>';
+    });
 
     async function loadInbox() {
       const items = await api("/api/inbox");
@@ -694,8 +817,15 @@
     });
 
     viewButtons.forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         setActiveView(button.dataset.viewTarget);
+        if (button.dataset.viewTarget === "search-view") {
+          try {
+            await loadHistorySources();
+          } catch (error) {
+            historySearchStatusNode.textContent = error.message;
+          }
+        }
       });
     });
 

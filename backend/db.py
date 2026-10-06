@@ -330,6 +330,74 @@ def list_active_inbox_entries(settings: Settings) -> list[dict]:
             return cur.fetchall()
 
 
+def list_history_sources(settings: Settings) -> list[str]:
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT source_name
+                FROM inbox_entries
+                ORDER BY source_name ASC
+                """
+            )
+            return [row["source_name"] for row in cur.fetchall()]
+
+
+def search_inbox_history(
+    settings: Settings,
+    *,
+    days: int | None,
+    source: str | None,
+    keyword: str | None,
+    rating: int | None,
+) -> list[dict]:
+    conditions = []
+    params: list[str | int] = []
+
+    if days is not None:
+        conditions.append("COALESCE(article_published_at, discovered_at) >= NOW() - (%s * INTERVAL '1 day')")
+        params.append(days)
+    if source:
+        conditions.append("source_name = %s")
+        params.append(source)
+    if keyword:
+        escaped_keyword = keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_")
+        conditions.append(
+            "(title ILIKE %s ESCAPE '!' OR summary ILIKE %s ESCAPE '!')"
+        )
+        pattern = f"%{escaped_keyword}%"
+        params.extend((pattern, pattern))
+    if rating is not None:
+        conditions.append("rating = %s")
+        params.append(rating)
+
+    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    with get_connection(settings) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT
+                    id,
+                    source_name,
+                    title,
+                    article_url,
+                    canonical_url,
+                    summary,
+                    status,
+                    rating,
+                    read_at,
+                    dismissed_at,
+                    discovered_at,
+                    article_published_at
+                FROM inbox_entries
+                {where_clause}
+                ORDER BY discovered_at DESC
+                """,
+                params,
+            )
+            return cur.fetchall()
+
+
 def dismiss_inbox_entry(settings: Settings, entry_id: int) -> dict | None:
     with get_connection(settings) as conn:
         with conn.cursor() as cur:

@@ -37,6 +37,8 @@ The system is intentionally small and local:
 ## Current API surface
 
 - `GET /api/inbox` - list active briefing entries
+- `GET /api/history` - search historical entries by date range, source, keyword, and rating
+- `GET /api/history/sources` - list source names present in historical entries
 - `GET /api/sources` - list configured sources
 - `POST|PUT|DELETE /api/sources` - manage sources
 - `POST /api/inbox/{id}/read` - mark an entry read
@@ -45,6 +47,10 @@ The system is intentionally small and local:
 - `POST /api/jobs/run-now` - start the `DailyBriefingWorkflow` immediately and
     wait for it to finish (same response shape as before; now backed by
     Temporal instead of running in-thread)
+
+The dashboard's **Search** navigation button switches to a historical search
+screen in the current page, including entries that have been read, rated, or
+dismissed.
 
 ## Run locally
 
