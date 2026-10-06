@@ -8,7 +8,6 @@ dependencies = [
     "uvicorn~=0.49",
     "temporalio~=1.32",
     "requests~=2.34",
-    "beautifulsoup4~=4.14",
     "feedparser~=6.0",
     "psycopg[binary]~=3.3",
     "opentelemetry-api~=1.42",

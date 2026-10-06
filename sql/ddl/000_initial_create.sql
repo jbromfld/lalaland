@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS public.research_sources (
     category TEXT,
     tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     feed_url TEXT NOT NULL UNIQUE,
-    adapter_type TEXT NOT NULL DEFAULT 'rss',
     source_weight INTEGER NOT NULL DEFAULT 1,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     last_polled_at TIMESTAMPTZ,
@@ -21,7 +20,6 @@ CREATE TABLE IF NOT EXISTS public.research_sources (
 ALTER TABLE public.research_sources
     ADD COLUMN IF NOT EXISTS category TEXT,
     ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT ARRAY[]::TEXT[],
-    ADD COLUMN IF NOT EXISTS adapter_type TEXT DEFAULT 'rss',
     ADD COLUMN IF NOT EXISTS source_weight INTEGER DEFAULT 1,
     ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT TRUE,
     ADD COLUMN IF NOT EXISTS last_polled_at TIMESTAMPTZ,
@@ -30,7 +28,6 @@ ALTER TABLE public.research_sources
 UPDATE public.research_sources
 SET
     tags = COALESCE(tags, ARRAY[]::TEXT[]),
-    adapter_type = COALESCE(adapter_type, 'rss'),
     source_weight = COALESCE(source_weight, 1),
     enabled = COALESCE(enabled, TRUE),
     created_at = COALESCE(created_at, NOW());
@@ -38,14 +35,15 @@ SET
 ALTER TABLE public.research_sources
     ALTER COLUMN tags SET DEFAULT ARRAY[]::TEXT[],
     ALTER COLUMN tags SET NOT NULL,
-    ALTER COLUMN adapter_type SET DEFAULT 'rss',
-    ALTER COLUMN adapter_type SET NOT NULL,
     ALTER COLUMN source_weight SET DEFAULT 1,
     ALTER COLUMN source_weight SET NOT NULL,
     ALTER COLUMN enabled SET DEFAULT TRUE,
     ALTER COLUMN enabled SET NOT NULL,
     ALTER COLUMN created_at SET DEFAULT NOW(),
     ALTER COLUMN created_at SET NOT NULL;
+
+ALTER TABLE public.research_sources
+    DROP COLUMN IF EXISTS adapter_type;
 
 -- Backfill tags for legacy rows that only had category.
 UPDATE public.research_sources

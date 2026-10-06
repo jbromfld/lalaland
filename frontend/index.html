@@ -88,9 +88,11 @@
     }
 
     .nav-button {
+      display: block;
       background: #172554;
       color: #dbeafe;
       text-align: left;
+      text-decoration: none;
     }
 
     .nav-button.is-active {
@@ -314,6 +316,7 @@
         <nav class="nav-list">
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
+          <button class="nav-button" type="button" data-view-target="search-view">Search</button>
         </nav>
 
         <div class="actions">
@@ -348,13 +351,6 @@
                 <input id="source-feed-url" name="feed_url" type="url" required />
               </label>
               <label>
-                Adapter
-                <select id="source-adapter-type" name="adapter_type">
-                  <option value="rss">rss</option>
-                  <option value="html">html</option>
-                </select>
-              </label>
-              <label>
                 Weight
                 <input id="source-weight" name="source_weight" type="number" min="0" value="1" required />
               </label>
@@ -382,6 +378,53 @@
 
           <div class="grid" id="research"></div>
         </section>
+
+        <section class="panel view" id="search-view">
+          <div class="view-header">
+            <div>
+              <h2>Search historical records</h2>
+              <p>Search saved summaries, including items already read, rated, or dismissed.</p>
+            </div>
+          </div>
+
+          <form id="history-search-form">
+            <div class="form-grid">
+              <label>
+                Last n days
+                <input id="history-days" name="days" type="number" min="1" max="3650" placeholder="Any time" />
+              </label>
+              <label>
+                Source
+                <select id="history-source" name="source">
+                  <option value="">All sources</option>
+                </select>
+              </label>
+              <label>
+                Keyword
+                <input id="history-keyword" name="keyword" type="search" maxlength="200" placeholder="Title or summary" />
+              </label>
+              <label>
+                Rating
+                <select id="history-rating" name="rating">
+                  <option value="">Any rating</option>
+                  <option value="1">1 star</option>
+                  <option value="2">2 stars</option>
+                  <option value="3">3 stars</option>
+                  <option value="4">4 stars</option>
+                  <option value="5">5 stars</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button class="primary" type="submit">Search</button>
+              <button class="ghost" id="history-search-clear" type="button">Clear</button>
+              <span id="history-search-status" role="status"></span>
+            </div>
+          </form>
+          <div class="grid" id="history-results">
+            <div class="empty">Choose filters and select Search to find saved records.</div>
+          </div>
+        </section>
       </section>
     </div>
   </main>
@@ -396,17 +439,25 @@
     const sourceNameInput = document.getElementById("source-name");
     const sourceTagsInput = document.getElementById("source-tags");
     const sourceFeedUrlInput = document.getElementById("source-feed-url");
-    const sourceAdapterTypeInput = document.getElementById("source-adapter-type");
     const sourceWeightInput = document.getElementById("source-weight");
     const sourceEnabledInput = document.getElementById("source-enabled");
     const sourceSubmitButton = document.getElementById("source-submit");
     const sourceCancelButton = document.getElementById("source-cancel");
     const inboxCountNode = document.getElementById("inbox-count");
     const inboxNavCountNode = document.getElementById("inbox-nav-count");
+    const historySearchForm = document.getElementById("history-search-form");
+    const historyDaysInput = document.getElementById("history-days");
+    const historySourceSelect = document.getElementById("history-source");
+    const historyKeywordInput = document.getElementById("history-keyword");
+    const historyRatingSelect = document.getElementById("history-rating");
+    const historySearchStatusNode = document.getElementById("history-search-status");
+    const historyResultsNode = document.getElementById("history-results");
+    const historySearchClearButton = document.getElementById("history-search-clear");
     const viewButtons = Array.from(document.querySelectorAll("[data-view-target]"));
     const views = Array.from(document.querySelectorAll(".view"));
 
     let sourcesCache = [];
+    let historySourcesLoaded = false;
 
     async function api(path, options = {}) {
       const response = await fetch(path, {
@@ -474,7 +525,6 @@
       sourceIdInput.value = "";
       sourceEnabledInput.checked = true;
       sourceWeightInput.value = "1";
-      sourceAdapterTypeInput.value = "rss";
       sourceSubmitButton.textContent = "Add source";
       sourceCancelButton.hidden = true;
     }
@@ -484,7 +534,6 @@
       sourceNameInput.value = source.name;
       sourceTagsInput.value = (source.tags || []).join(", ");
       sourceFeedUrlInput.value = source.feed_url;
-      sourceAdapterTypeInput.value = source.adapter_type;
       sourceWeightInput.value = String(source.source_weight);
       sourceEnabledInput.checked = source.enabled;
       sourceSubmitButton.textContent = "Save changes";
@@ -505,7 +554,6 @@
             <div>
               <strong>${escapeHtml(source.name)}</strong>
               <div class="source-meta">
-                <span class="tag">${escapeHtml(source.adapter_type)}</span>
                 <span class="tag">weight ${escapeHtml(source.source_weight)}</span>
                 <span class="tag">${source.enabled ? "enabled" : "disabled"}</span>
                 ${(source.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
@@ -527,6 +575,70 @@
       const sources = await api("/api/sources");
       renderSources(sources);
     }
+
+    async function loadHistorySources() {
+      if (historySourcesLoaded) {
+        return;
+      }
+      const sources = await api("/api/history/sources");
+      historySourceSelect.innerHTML = '<option value="">All sources</option>' + sources.map((source) => (
+        `<option value="${escapeHtml(source)}">${escapeHtml(source)}</option>`
+      )).join("");
+      historySourcesLoaded = true;
+    }
+
+    function renderHistoryResults(items) {
+      if (!items.length) {
+        historyResultsNode.innerHTML = '<div class="empty">No historical records match these filters.</div>';
+        return;
+      }
+
+      historyResultsNode.innerHTML = items.map((item) => {
+        const recordDate = item.article_published_at || item.discovered_at;
+        const rating = item.rating === null ? "Not rated" : `${item.rating} / 5`;
+        return `
+          <article class="card">
+            <div class="card-top">
+              <div>
+                <div class="source">${escapeHtml(item.source_name)}</div>
+                <strong>${escapeHtml(item.title)}</strong>
+              </div>
+              <span>${escapeHtml(item.status)}</span>
+            </div>
+            <div class="summary">${escapeHtml(item.summary)}</div>
+            <div class="source-meta">
+              <span>${escapeHtml(new Date(recordDate).toLocaleString())}</span>
+              <span>Rating: ${escapeHtml(rating)}</span>
+              <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open source</a>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    historySearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const params = new URLSearchParams();
+      if (historyDaysInput.value) params.set("days", historyDaysInput.value);
+      if (historySourceSelect.value) params.set("source", historySourceSelect.value);
+      if (historyKeywordInput.value.trim()) params.set("keyword", historyKeywordInput.value.trim());
+      if (historyRatingSelect.value) params.set("rating", historyRatingSelect.value);
+
+      try {
+        historySearchStatusNode.textContent = "Searching...";
+        const items = await api(`/api/history?${params.toString()}`);
+        renderHistoryResults(items);
+        historySearchStatusNode.textContent = `${items.length} record${items.length === 1 ? "" : "s"} found.`;
+      } catch (error) {
+        historySearchStatusNode.textContent = error.message;
+      }
+    });
+
+    historySearchClearButton.addEventListener("click", () => {
+      historySearchForm.reset();
+      historySearchStatusNode.textContent = "";
+      historyResultsNode.innerHTML = '<div class="empty">Choose filters and select Search to find saved records.</div>';
+    });
 
     async function loadInbox() {
       const items = await api("/api/inbox");
@@ -634,7 +746,6 @@
               name: source.name,
               tags: source.tags || [],
               feed_url: source.feed_url,
-              adapter_type: source.adapter_type,
               source_weight: source.source_weight,
               enabled: !source.enabled
             })
@@ -665,7 +776,6 @@
           .map((tag) => tag.trim())
           .filter(Boolean),
         feed_url: sourceFeedUrlInput.value.trim(),
-        adapter_type: sourceAdapterTypeInput.value,
         source_weight: Number(sourceWeightInput.value),
         enabled: sourceEnabledInput.checked
       };
@@ -707,8 +817,15 @@
     });
 
     viewButtons.forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         setActiveView(button.dataset.viewTarget);
+        if (button.dataset.viewTarget === "search-view") {
+          try {
+            await loadHistorySources();
+          } catch (error) {
+            historySearchStatusNode.textContent = error.message;
+          }
+        }
       });
     });
 
