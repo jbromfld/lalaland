@@ -128,6 +128,12 @@ and its persistence setup.
 Settings come from environment variables in `backend/config.py`. The defaults
 below reflect `load_settings()`; environment values override them.
 
+Corpus defaults are defined once on `Settings` in `backend/config.py`. To use a
+new model version, set `CORPUS_MODEL` in `.env` for Docker or export it for native
+processes, ensure that model is installed in Ollama, and restart the backend and
+worker. No code or test edits are needed. Existing articles retain their saved
+model selection.
+
 | Setting | Purpose | Default |
 |---|---|---|
 | `DATABASE_URL` | Shared Postgres database | `postgresql://localhost:5432/lalaland` |
@@ -136,7 +142,7 @@ below reflect `load_settings()`; environment values override them.
 | `OLLAMA_TIMEOUT_SECONDS` | LA-1 inference timeout | `120` |
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | LA-1 daily start | `6` / `0` |
 | `SCHEDULE_TIMEZONE` | LA-1 schedule timezone | `local` (see below) |
-| `CORPUS_MODEL` | LA-2 default model | `gemma4:e4b` |
+| `CORPUS_MODEL` | LA-2 default model | `Settings.corpus_model` in `backend/config.py` |
 | `CORPUS_SCHEDULE_HOUR` / `CORPUS_END_HOUR` | LA-2 overnight window | `3` / `5` |
 | `CORPUS_SCHEDULE_TIMEZONE` | LA-2 schedule timezone | `America/Detroit` |
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |

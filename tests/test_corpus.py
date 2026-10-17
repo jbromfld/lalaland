@@ -2,7 +2,7 @@ import json
 from dataclasses import replace
 from unittest.mock import Mock
 import pytest
-from backend.config import load_settings
+from backend.config import Settings, load_settings
 from backend.services import article_extraction as extraction
 from backend.services import corpus_summary as summary
 from backend import corpus_api
@@ -269,7 +269,7 @@ def test_corpus_model_config_is_independent(monkeypatch):
     monkeypatch.delenv('CORPUS_MODEL',raising=False)
     monkeypatch.setenv('OLLAMA_MODEL','rss-model')
     settings=load_settings()
-    assert settings.corpus_model=='gemma4:e4b' and settings.ollama_model=='rss-model'
+    assert settings.corpus_model==Settings.corpus_model and settings.ollama_model=='rss-model'
     monkeypatch.setenv('CORPUS_MODEL','corpus-model')
     settings=load_settings()
     assert settings.corpus_model=='corpus-model' and settings.ollama_model=='rss-model'

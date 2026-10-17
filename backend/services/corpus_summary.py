@@ -104,8 +104,8 @@ def summarize(settings, article, heartbeat=lambda:None, progress=None, generator
     logger.info('Corpus article %s: synthesizing engineering briefing', article.get('id', '?'))
     report('writing', 1, 1, 0)
     raw = run_generation(settings, article['model'],
-        'Write an 800–1,200 word engineering briefing for a DevOps engineer moving into forward deployed AI '
-        'engineering without advanced ML or math expertise. Use familiar systems analogies and define terms. '
+        'Write an 800-1,200 word engineering briefing for a DevOps/AIops engineer without advanced ML or math expertise. ' \
+        'Use familiar systems analogies and define terms. '
         'Cover the problem, mechanism, experimental evidence and conditions, limitations, relevant deployment, '
         'cost, latency, reliability, observability and customer integration implications, adoption prerequisites '
         'and tradeoffs, and a small experiment with measurable success criteria. Distinguish paper findings '
