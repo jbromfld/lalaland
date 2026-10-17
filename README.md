@@ -258,6 +258,7 @@ these corpus additions.
 | `GET /api/ollama/models` | List installed models, corpus default, and discovery errors |
 | `POST /api/corpus` | Queue `{"url": "https://arxiv.org/pdf/2607.01077"}`; optional `model` overrides the default |
 | `GET /api/corpus` | Paginated unread list/search using `keyword`, `page`, and `limit`; `include_reviewed=true` includes reviewed articles |
+| `DELETE /api/corpus/{id}` | Permanently delete an article and its extracted text, briefing, progress, cached evidence, review, and quarantine records |
 | `GET /api/corpus/{id}` | Retrieve saved article, briefing, progress, and review state |
 | `GET /api/corpus/schedule` | Read the configured overnight window |
 | `POST /api/corpus/run-now` | Start or reuse the active manual batch; return immediately |
@@ -315,3 +316,13 @@ URL, reason, and timestamp; processing state remains separate.
 
 This policy applies to LA-2 article downloads. Local Ollama/Temporal addresses and
 LA-1 RSS fetching retain their existing configuration.
+
+
+Delete any research article from its Corpus detail view, including quarantined,
+queued, read, and rated articles. **Delete article** asks for confirmation and
+permanently removes its database record and related corpus data. It also removes
+the article from search. Processing checks for deletion before subsequent stages
+and model calls; a fetch or model request already in flight may finish, but cannot
+restore the deleted article. Existing Temporal execution history is retained by
+Temporal under its own retention policy. You can submit the URL again later as a
+new article.

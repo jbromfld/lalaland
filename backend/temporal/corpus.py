@@ -25,10 +25,17 @@ def enforce_article_trust(settings, row):
         raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc
 
 
+def require_article(settings, article_id):
+    row = store.get(settings, article_id)
+    if row is None:
+        raise ApplicationError('Article was deleted', type='CorpusDeleted', non_retryable=True)
+    return row
+
+
 @activity.defn
 def extract_article(data: dict) -> None:
     settings = load_settings()
-    row = store.get(settings, data['id'])
+    row = require_article(settings, data['id'])
     if row['attempt'] != data['attempt'] or row['state'] == 'ready':
         return
     enforce_article_trust(settings, row)
@@ -47,7 +54,7 @@ def extract_article(data: dict) -> None:
 @activity.defn
 def summarize_article(data: dict) -> None:
     settings = load_settings()
-    row = store.get(settings, data['id'])
+    row = require_article(settings, data['id'])
     if row['attempt'] != data['attempt'] or row['state'] == 'ready':
         return
     enforce_article_trust(settings, row)
@@ -55,11 +62,13 @@ def summarize_article(data: dict) -> None:
     current_stage = None
     def report(stage, current, total, completed):
         nonlocal current_stage
+        require_article(settings, row['id'])
         current_stage = stage
         store.set_progress(settings, row['id'], row['attempt'], activity.info().attempt,
                            stage, current, total, completed)
         activity.heartbeat({'stage':stage, 'current':current, 'total':total, 'completed':completed})
     def cached_generate(call_settings, model, prompt, structured=False):
+        require_article(settings, row['id'])
         digest = sha256(prompt.encode('utf-8')).hexdigest()
         use_cache = current_stage == 'reading' and not structured
         cached = store.cached_generation(settings, row, digest) if use_cache else None
@@ -115,6 +124,8 @@ class CorpusWorkflow:
             cause = exc
             while getattr(cause, 'cause', None) is not None:
                 cause = cause.cause
+            if isinstance(cause, ApplicationError) and cause.type == 'CorpusDeleted':
+                return 'deleted'
             if isinstance(cause, ApplicationError) and cause.type == 'CorpusQuarantined':
                 return 'quarantined'
             if (isinstance(cause, ApplicationError) and cause.type == 'CorpusDeferred') or (data.get('deadline') and workflow.now() >= datetime.fromisoformat(data['deadline'])):

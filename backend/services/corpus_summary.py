@@ -1,6 +1,7 @@
 import json
 import logging
 import requests
+from langsmith import traceable
 from backend.services.summarization import _remove_reasoning
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,10 @@ def installed_models(settings):
     return sorted({m['name'] for m in models})
 
 
+@traceable(
+    name='corpus.generate', run_type='llm', tags=['ollama', 'corpus'],
+    process_inputs=lambda inputs: {key: inputs[key] for key in ('model', 'prompt', 'structured')},
+)
 def generate(settings, model, prompt, structured=False):
     payload = {'model':model, 'prompt':prompt, 'stream':False, 'think':False,
                'options':{'temperature':0.2, 'num_ctx':16384, 'num_predict':3072 if structured else 768}}
@@ -58,6 +63,14 @@ def chunks(sections, size=12000):
         yield buffer
 
 
+@traceable(
+    name='corpus.summarize', tags=['ollama', 'corpus'],
+    process_inputs=lambda inputs: {'article': {
+        key: inputs['article'][key]
+        for key in ('id', 'title', 'original_url', 'resolved_url', 'model', 'attempt')
+        if key in inputs['article']
+    }},
+)
 def summarize(settings, article, heartbeat=lambda:None, progress=None, generator=None):
     def report(stage, current, total, completed):
         if progress is not None:
