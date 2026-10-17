@@ -128,7 +128,8 @@ and its persistence setup.
 Settings come from environment variables in `backend/config.py`. The defaults
 below reflect `load_settings()`; environment values override them.
 
-Corpus defaults are defined once on `Settings` in `backend/config.py`. To use a
+All application defaults are defined once on `Settings` in `backend/config.py`;
+`load_settings()` applies environment overrides to a default instance. To use a
 new model version, set `CORPUS_MODEL` in `.env` for Docker or export it for native
 processes, ensure that model is installed in Ollama, and restart the backend and
 worker. No code or test edits are needed. Existing articles retain their saved

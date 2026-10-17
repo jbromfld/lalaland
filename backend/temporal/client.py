@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import logging
-import os
 
 from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow, ScheduleSpec, SchedulePolicy, ScheduleOverlapPolicy, ScheduleUpdate
 from temporalio.service import RPCError, RPCStatusCode
 
-from backend.config import Settings
+from backend.config import Settings, load_settings
 
 from .workflows import DailyBriefingWorkflow
 from .corpus import NightlyCorpusWorkflow
@@ -20,11 +19,11 @@ DAILY_BRIEFING_SCHEDULE_ID = "daily-briefing-schedule"
 
 
 def temporal_address() -> str:
-    return os.getenv("TEMPORAL_ADDRESS", "host.docker.internal:30733")
+    return load_settings().temporal_address
 
 
 def temporal_namespace() -> str:
-    return os.getenv("TEMPORAL_NAMESPACE", "lalaland")
+    return load_settings().temporal_namespace
 
 
 async def connect() -> Client:
