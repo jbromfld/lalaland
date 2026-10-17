@@ -102,8 +102,9 @@ def test_extraction_limits(monkeypatch):
 
 
 def test_redirect_private_destination(monkeypatch):
+    monkeypatch.setenv('CORPUS_TRUSTED_DOMAINS','example.org,localhost')
     monkeypatch.setattr(extraction.socket,'getaddrinfo', lambda host,*a,**k:[(2,1,6,'',('127.0.0.1' if host=='localhost' else '93.184.216.34',443))])
-    response=Mock(is_redirect=True,headers={'Location':'http://localhost/secret'})
+    response=Mock(is_redirect=True,headers={'Location':'https://localhost/secret'})
     response.__enter__=Mock(return_value=response)
     response.__exit__=Mock(return_value=False)
     session=Mock()
@@ -169,6 +170,7 @@ def test_pdf_nul_characters_are_removed(monkeypatch):
 
 
 def test_activity_retry_reuses_text_and_model(settings, monkeypatch):
+    settings=replace(settings,corpus_trusted_domains=('example.org',))
     from temporalio.testing import ActivityEnvironment
     from backend.temporal import corpus
     from backend.services import corpus_store as store
@@ -223,7 +225,7 @@ def test_additive_migration_preserves_existing_data(settings):
     from pathlib import Path
     from backend.db import get_connection, create_source
     source=create_source(settings,name='Existing feed',tags=['ops'],feed_url='https://example.org/rss',source_weight=1,enabled=True)
-    migration='\n'.join(Path(f'sql/ddl/{name}').read_text() for name in ['001_corpus.sql','002_corpus_progress.sql','003_corpus_generations.sql'])
+    migration='\n'.join(Path(f'sql/ddl/{name}').read_text() for name in ['001_corpus.sql','002_corpus_progress.sql','003_corpus_generations.sql','004_corpus_reviews.sql','005_corpus_quarantine.sql'])
     with get_connection(settings) as conn:
         conn.execute("""INSERT INTO inbox_entries(source_id,source_name,title,canonical_url,article_url,summary)
             VALUES (%s,'Existing feed','Existing article','https://example.org/old','https://example.org/old','Existing summary')""",(source['id'],))

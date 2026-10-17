@@ -2,18 +2,20 @@ import uuid
 import os
 import pytest
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 from temporalio.testing import WorkflowEnvironment
 from temporalio.worker import Worker
 from backend.temporal.corpus import CorpusWorkflow
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('mode',['success','transient','permanent'])
+@pytest.mark.parametrize('mode',['success','transient','permanent','quarantined'])
 async def test_corpus_workflow(mode):
     events=[]
     @activity.defn(name='extract_article')
     async def extract(data:dict) -> None:
         events.append('extract')
+        if mode == 'quarantined': raise ApplicationError('Unknown domain', type='CorpusQuarantined', non_retryable=True)
         if mode == 'permanent': raise ValueError('Unreadable scan')
         if mode == 'transient' and events.count('extract') == 1: raise RuntimeError('Temporary network error')
     @activity.defn(name='summarize_article')
@@ -26,7 +28,9 @@ async def test_corpus_workflow(mode):
         queue=f'corpus-test-{uuid.uuid4()}'
         async with Worker(env.client,task_queue=queue,workflows=[CorpusWorkflow],activities=[extract,summarize,fail]):
             await env.client.execute_workflow(CorpusWorkflow.run,{'id':1,'attempt':1},id=str(uuid.uuid4()),task_queue=queue)
-    if mode == 'permanent':
+    if mode == 'quarantined':
+        assert events == ['extract']
+    elif mode == 'permanent':
         assert events == ['extract','ValueError: Unreadable scan']
     else:
         assert events[-1] == 'summarize'

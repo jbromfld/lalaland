@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -17,6 +18,7 @@ class Settings:
     app_title: str = "Research Briefing"
     service_name: str = "research-briefing"
     frontend_dir: Path = Path(__file__).resolve().parent.parent / "frontend"
+    corpus_trusted_domains: tuple[str, ...] = ("arxiv.org", "www.arxiv.org", "export.arxiv.org")
     corpus_model: str = "gemma4:e4b"
     corpus_ollama_timeout_seconds: int = 300
     corpus_final_timeout_seconds: int = 900
@@ -25,6 +27,21 @@ class Settings:
     corpus_schedule_timezone: str = "America/Detroit"
     temporal_address: str = "host.docker.internal:30733"
     temporal_namespace: str = "lalaland"
+
+
+def trusted_domains(value: str) -> tuple[str, ...]:
+    domains = []
+    for entry in value.split(','):
+        if not entry.strip():
+            continue
+        domain = entry.strip().lower().encode('idna').decode('ascii')
+        if len(domain) > 253 or not all(
+            re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label)
+            for label in domain.split('.')
+        ):
+            raise ValueError('CORPUS_TRUSTED_DOMAINS must contain exact hostnames, without URLs, ports, or wildcards')
+        domains.append(domain)
+    return tuple(dict.fromkeys(domains))
 
 
 def load_settings() -> Settings:
@@ -43,6 +60,9 @@ def load_settings() -> Settings:
         schedule_timezone=os.getenv("SCHEDULE_TIMEZONE", defaults.schedule_timezone),
         app_title=os.getenv("APP_TITLE", defaults.app_title),
         service_name=os.getenv("OTEL_SERVICE_NAME", defaults.service_name),
+        corpus_trusted_domains=trusted_domains(os.getenv(
+            "CORPUS_TRUSTED_DOMAINS", ",".join(defaults.corpus_trusted_domains)
+        )),
         corpus_model=os.getenv("CORPUS_MODEL", defaults.corpus_model),
         corpus_ollama_timeout_seconds=int(os.getenv(
             "CORPUS_OLLAMA_TIMEOUT_SECONDS", str(defaults.corpus_ollama_timeout_seconds)

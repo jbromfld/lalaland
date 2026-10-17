@@ -34,13 +34,18 @@ CREATE TABLE IF NOT EXISTS corpus_reviews (
  rating SMALLINT CHECK (rating BETWEEN 1 AND 5),
  read_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS corpus_quarantine (
+ article_id BIGINT PRIMARY KEY REFERENCES corpus_articles(id) ON DELETE CASCADE,
+ url TEXT NOT NULL, reason TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 
 def get(settings, article_id):
     with get_connection(settings) as conn:
-        row = conn.execute('''SELECT corpus_articles.*, corpus_reviews.rating, corpus_reviews.read_at
-            FROM corpus_articles LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id
+        row = conn.execute('''SELECT corpus_articles.*, q.url AS quarantine_url, q.reason AS quarantine_reason, corpus_reviews.rating, corpus_reviews.read_at
+            FROM corpus_articles LEFT JOIN corpus_quarantine q ON q.article_id=corpus_articles.id LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id
             WHERE corpus_articles.id = %s''', (article_id,)).fetchone()
         if row:
             row['progress'] = conn.execute('''SELECT stage,current,total,completed,activity_attempt,updated_at
@@ -48,12 +53,16 @@ def get(settings, article_id):
         return row
 
 
-def create(settings, url, canonical, model):
+def create(settings, url, canonical, model, quarantine_reason=None):
     with get_connection(settings) as conn:
         row = conn.execute('''INSERT INTO corpus_articles (original_url,canonical_url,model)
             VALUES (%s,%s,%s) ON CONFLICT (canonical_url) DO NOTHING RETURNING *''',
             (url, canonical, model)).fetchone()
         if row:
+            if quarantine_reason:
+                conn.execute('INSERT INTO corpus_quarantine(article_id,url,reason) VALUES (%s,%s,%s)',
+                             (row['id'], url, quarantine_reason))
+                row.update(quarantine_url=url, quarantine_reason=quarantine_reason)
             return row, True
         return conn.execute('SELECT * FROM corpus_articles WHERE canonical_url=%s', (canonical,)).fetchone(), False
 
@@ -82,16 +91,16 @@ def search(settings, keyword, page, limit, *, include_reviewed=False):
     if keyword:
         conditions.append("search_document @@ websearch_to_tsquery('english', %s)")
     condition = 'WHERE ' + ' AND '.join(conditions) if conditions else ''
-    tables = 'corpus_articles LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id'
+    tables = 'corpus_articles LEFT JOIN corpus_quarantine q ON q.article_id=corpus_articles.id LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id'
     args = (keyword,) if keyword else ()
     order = "ts_rank(search_document, websearch_to_tsquery('english', %s)) DESC," if keyword else ''
     with get_connection(settings) as conn:
         total = conn.execute(f'SELECT count(*) AS count FROM {tables} {condition}', args).fetchone()['count']
-        rows = conn.execute(f'''SELECT id, original_url, title, state, error, model, created_at, updated_at, rating, read_at,
+        rows = conn.execute(f'''SELECT id, original_url, title, state, error, model, q.url AS quarantine_url, q.reason AS quarantine_reason, corpus_articles.created_at, updated_at, rating, read_at,
             (SELECT jsonb_build_object('stage',p.stage,'current',p.current,'total',p.total,
                 'completed',p.completed,'activity_attempt',p.activity_attempt,'updated_at',p.updated_at)
              FROM corpus_progress p WHERE p.article_id=corpus_articles.id AND p.attempt=corpus_articles.attempt) AS progress
-            FROM {tables} {condition} ORDER BY {order} created_at DESC, id DESC LIMIT %s OFFSET %s''',
+            FROM {tables} {condition} ORDER BY {order} corpus_articles.created_at DESC, id DESC LIMIT %s OFFSET %s''',
             (*args, *args, limit, (page-1)*limit)).fetchall()
     return {'items':rows, 'total':total, 'page':page, 'limit':limit}
 
@@ -129,7 +138,7 @@ def save_generation(settings, article, digest, response):
 
 def queued_articles(settings):
     with get_connection(settings) as conn:
-        return conn.execute("SELECT id,attempt FROM corpus_articles WHERE state='queued' ORDER BY created_at,id").fetchall()
+        return conn.execute("SELECT id,attempt FROM corpus_articles WHERE state='queued' AND NOT EXISTS (SELECT 1 FROM corpus_quarantine q WHERE q.article_id=corpus_articles.id) ORDER BY created_at,id").fetchall()
 
 
 def review(settings, article_id, rating=None):
@@ -139,3 +148,21 @@ def review(settings, article_id, rating=None):
             SELECT id,%s FROM corpus_articles WHERE id=%s AND state='ready'
             ON CONFLICT(article_id) DO UPDATE SET rating=COALESCE(EXCLUDED.rating,corpus_reviews.rating)
             RETURNING article_id,rating,read_at''',(rating,article_id)).fetchone()
+
+
+def quarantine(settings, article_id, attempt, url, reason):
+    with get_connection(settings) as conn:
+        row = conn.execute("""UPDATE corpus_articles SET state='queued', error=NULL, updated_at=NOW()
+            WHERE id=%s AND attempt=%s AND state <> 'ready' RETURNING id""", (article_id, attempt)).fetchone()
+        if row:
+            conn.execute("""INSERT INTO corpus_quarantine(article_id,url,reason) VALUES (%s,%s,%s)
+                ON CONFLICT(article_id) DO UPDATE SET url=EXCLUDED.url,reason=EXCLUDED.reason,created_at=NOW()""",
+                (article_id,url,reason))
+
+
+def release(settings, article_id):
+    with get_connection(settings) as conn:
+        row = conn.execute("DELETE FROM corpus_quarantine WHERE article_id=%s RETURNING article_id", (article_id,)).fetchone()
+        if row:
+            return conn.execute("""UPDATE corpus_articles SET state='queued',error=NULL,
+                attempt=attempt+1,updated_at=NOW() WHERE id=%s RETURNING *""", (article_id,)).fetchone()

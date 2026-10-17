@@ -6,10 +6,11 @@ import pytest
 from temporalio import activity, workflow
 from temporalio.testing import WorkflowEnvironment, ActivityEnvironment
 from temporalio.worker import Worker
-from backend.services import corpus_store as store
-from backend.services.ollama_queue import CorpusDeferred, check_deadline, inference_slot
-from backend.temporal.corpus import NightlyCorpusWorkflow, CorpusBatchWorkflow, CorpusWorkflow
-from backend.temporal import corpus
+with workflow.unsafe.imports_passed_through():
+    from backend.services import corpus_store as store
+    from backend.services.ollama_queue import CorpusDeferred, check_deadline, inference_slot
+    from backend.temporal.corpus import NightlyCorpusWorkflow, CorpusBatchWorkflow, CorpusWorkflow
+    from backend.temporal import corpus
 
 
 @workflow.defn(name='CorpusBatchWorkflow')
@@ -45,6 +46,7 @@ def test_inference_lock_blocks_other_session(settings):
 
 
 def test_expired_window_never_calls_model(settings,monkeypatch):
+    settings=replace(settings,corpus_trusted_domains=('example.org',))
     monkeypatch.setattr(corpus,'load_settings',lambda:settings)
     row,_=store.create(settings,'https://example.org/b','https://example.org/b','custom')
     store.update(settings,row['id'],1,title='Paper',article_text='Text',sections=[{'ref':'page 1','text':'a'*600}])
@@ -56,6 +58,7 @@ def test_expired_window_never_calls_model(settings,monkeypatch):
 
 
 def test_resume_reuses_completed_evidence(settings,monkeypatch):
+    settings=replace(settings,corpus_trusted_domains=('example.org',))
     import json
     from backend.services.corpus_summary import HEADINGS
     monkeypatch.setattr(corpus,'load_settings',lambda:settings)
