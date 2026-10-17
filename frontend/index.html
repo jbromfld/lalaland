@@ -333,7 +333,7 @@
 
       <section class="content">
         <section class="panel view" id="corpus-view">
-          <div class="view-header"><div><h2>Engineering research corpus</h2><p>Queue public papers or articles for an overnight engineering briefing.</p></div></div>
+          <div class="view-header"><div><h2>Engineering research corpus</h2><p>Queue HTTPS papers or articles for an overnight engineering briefing.</p></div></div>
           <form id="corpus-form">
             <label>Article URL <input id="corpus-url" type="url" required maxlength="2048" placeholder="https://arxiv.org/pdf/2607.01077" /></label>
             <label>Ollama model <select id="corpus-model"><option value="">Configured default</option></select></label>
@@ -864,6 +864,7 @@
       } catch (error) { document.getElementById('corpus-model-status').textContent = error.message; }
     }
     function corpusStateText(item) {
+      if (item.quarantine_url) return 'Quarantined: domain approval required';
       if (item.state === 'queued') return 'Queued for overnight processing';
       if (item.state !== 'summarizing' || !item.progress) return item.state;
       const p = item.progress;
@@ -893,12 +894,13 @@
       corpusSelected = id;
       const item = await api(`/api/corpus/${id}`);
       if (String(corpusSelected) !== String(id)) return;
-      corpusDetailPending = !['ready','failed'].includes(item.state);
+      corpusDetailPending = !item.quarantine_url && !['ready','failed'].includes(item.state);
       document.getElementById('corpus-detail').innerHTML = `<h2>${escapeHtml(item.title || item.original_url)}</h2>
         <p>${escapeHtml(corpusStateText(item))} · Model: ${escapeHtml(item.model)}</p>
         <p>${escapeHtml(corpusTimingText(item))}</p>
         <a href="${safeUrl(item.resolved_url || item.original_url)}" target="_blank" rel="noopener noreferrer">Original article</a>
         <p>${escapeHtml(item.error || '')}</p>
+        ${item.quarantine_url ? `<p>${escapeHtml(item.quarantine_reason)} · Blocked URL: ${escapeHtml(item.quarantine_url)}. Add the exact hostname to CORPUS_TRUSTED_DOMAINS on backend and worker, then release.</p><button type="button" data-corpus-release="${item.id}">Release after configuration update</button>` : ''}
         ${item.state === 'failed' ? `<button type="button" data-corpus-retry="${item.id}">Queue retry (uses selected model, or keeps original)</button>` : ''}
         ${Object.entries(item.briefing).map(([heading,text]) => `<section><h3>${escapeHtml(heading)}</h3><div class="summary">${escapeHtml(text)}</div></section>`).join('')}
         ${item.state === 'ready' ? `<div class="actions">
@@ -916,7 +918,7 @@
         return loadCorpus();
       }
       document.getElementById('corpus-results-label').textContent = corpusSearching ? 'Saved articles (includes read and rated)' : 'Unread articles';
-      corpusListPending = data.items.some(item => !['ready','failed'].includes(item.state));
+      corpusListPending = data.items.some(item => !item.quarantine_url && !['ready','failed'].includes(item.state));
       document.getElementById('corpus-results').innerHTML = data.items.map(item => `<p><button type="button" data-corpus-id="${item.id}">${escapeHtml(item.title || item.original_url)}</button> ${escapeHtml(corpusStateText(item))} · ${escapeHtml(item.model)} ${escapeHtml(corpusReviewText(item))}</p>`).join('') || '<p>No articles found.</p>';
       document.getElementById('corpus-page').textContent = ` Page ${data.page} · ${data.total} articles `;
       document.getElementById('corpus-prev').disabled = corpusPage === 1;
@@ -929,7 +931,7 @@
         const body = {url:document.getElementById('corpus-url').value};
         if (corpusModel.value) body.model = corpusModel.value;
         const item = await api('/api/corpus', {method:'POST', body:JSON.stringify(body)});
-        corpusStatus.textContent = 'Article queued for the next overnight processing window.';
+        corpusStatus.textContent = item.quarantine_url ? 'Article quarantined. Approve its domain in configuration before processing.' : 'Article queued for the next overnight processing window.';
         corpusPage = 1; corpusSearching = false; await loadCorpus(); await showCorpus(item.id);
       } catch (error) { corpusStatus.textContent = error.message; await loadCorpus(); }
       finally { button.disabled = false; }
@@ -972,6 +974,11 @@
           clearCorpusDetail();
           corpusStatus.textContent = target.dataset.corpusRate ? `Rated ${rating}/5. Available in saved-article search.` : 'Marked read. Available in saved-article search.';
           await loadCorpus();
+        }
+        if (target.dataset.corpusRelease) {
+          await api(`/api/corpus/${target.dataset.corpusRelease}/release`, {method:'POST'});
+          corpusStatus.textContent = 'Article released and queued for processing.';
+          await showCorpus(target.dataset.corpusRelease); await loadCorpus();
         }
         if (target.dataset.corpusId) await showCorpus(target.dataset.corpusId);
         if (target.dataset.corpusRetry) {

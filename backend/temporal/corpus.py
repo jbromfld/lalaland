@@ -8,9 +8,21 @@ from temporalio.exceptions import ApplicationError, WorkflowAlreadyStartedError
 with workflow.unsafe.imports_passed_through():
     from backend.config import load_settings
     from backend.services import corpus_store as store
-    from backend.services.article_extraction import extract
+    from backend.services.article_extraction import extract, require_trusted, UntrustedDomain
     from backend.services.corpus_summary import summarize, generate
     from backend.services.ollama_queue import CorpusDeferred, inference_slot
+
+
+def enforce_article_trust(settings, row):
+    if row.get('quarantine_url'):
+        raise ApplicationError('Article is quarantined', type='CorpusQuarantined', non_retryable=True)
+    try:
+        require_trusted(row['original_url'], settings.corpus_trusted_domains)
+        if row.get('resolved_url'):
+            require_trusted(row['resolved_url'], settings.corpus_trusted_domains)
+    except UntrustedDomain as exc:
+        store.quarantine(settings, row['id'], row['attempt'], exc.url, str(exc))
+        raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc
 
 
 @activity.defn
@@ -19,11 +31,16 @@ def extract_article(data: dict) -> None:
     row = store.get(settings, data['id'])
     if row['attempt'] != data['attempt'] or row['state'] == 'ready':
         return
+    enforce_article_trust(settings, row)
     if row['article_text']:
         return
     store.update(settings, row['id'], row['attempt'], state='extracting', error=None)
     activity.heartbeat()
-    result = extract(row['original_url'])
+    try:
+        result = extract(row['original_url'])
+    except UntrustedDomain as exc:
+        store.quarantine(settings, row['id'], row['attempt'], exc.url, str(exc))
+        raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc
     store.update(settings, row['id'], row['attempt'], **result)
 
 
@@ -33,6 +50,7 @@ def summarize_article(data: dict) -> None:
     row = store.get(settings, data['id'])
     if row['attempt'] != data['attempt'] or row['state'] == 'ready':
         return
+    enforce_article_trust(settings, row)
     store.update(settings, row['id'], row['attempt'], state='summarizing', error=None)
     current_stage = None
     def report(stage, current, total, completed):
@@ -97,6 +115,8 @@ class CorpusWorkflow:
             cause = exc
             while getattr(cause, 'cause', None) is not None:
                 cause = cause.cause
+            if isinstance(cause, ApplicationError) and cause.type == 'CorpusQuarantined':
+                return 'quarantined'
             if (isinstance(cause, ApplicationError) and cause.type == 'CorpusDeferred') or (data.get('deadline') and workflow.now() >= datetime.fromisoformat(data['deadline'])):
                 await workflow.execute_activity(defer_article, data, start_to_close_timeout=timedelta(seconds=30))
                 return 'deferred'

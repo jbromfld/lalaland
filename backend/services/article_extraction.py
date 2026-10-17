@@ -6,6 +6,7 @@ import time
 from io import BytesIO
 from urllib.parse import urlsplit, urljoin, urlunsplit
 import requests
+from backend.config import load_settings
 from backend.services.discovery import canonicalize_url
 
 MAX_BYTES = 20 * 1024 * 1024
@@ -13,13 +14,35 @@ MAX_CHARS = 500_000
 ARXIV = re.compile(r'^/(?:abs|pdf)/((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?)(?:\.pdf)?/?$')
 
 
-def validate_url(url):
+class UntrustedDomain(ValueError):
+    def __init__(self, url):
+        self.url = url
+        super().__init__(f"Domain is not trusted: {urlsplit(url).hostname}")
+
+
+def article_hostname(url):
+    # Reject parser ambiguities before checking the exact, IDNA-normalized host.
+    if any(ord(c) <= 32 or ord(c) == 127 for c in url) or "\\" in url:
+        raise ValueError('Invalid article URL')
     p = urlsplit(url)
-    if p.scheme not in ('http','https') or not p.hostname or p.username or p.password:
-        raise ValueError('Use a public HTTP or HTTPS article URL without credentials')
-    if p.port not in (None, 443 if p.scheme == 'https' else 80):
-        raise ValueError('Only standard HTTP and HTTPS ports are supported')
-    addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
+    if p.scheme != 'https' or not p.hostname or p.username is not None or p.password is not None:
+        raise ValueError('Use a public HTTPS article URL without credentials')
+    if p.port not in (None, 443):
+        raise ValueError('Only the standard HTTPS port is supported')
+    return p.hostname.encode('idna').decode('ascii').lower()
+
+
+def require_trusted(url, domains=None):
+    host = article_hostname(url)
+    domains = load_settings().corpus_trusted_domains if domains is None else domains
+    if host not in domains:
+        raise UntrustedDomain(url)
+    return url
+
+
+def validate_url(url):
+    host = article_hostname(url)
+    addresses = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
         raise ValueError('Article URLs must resolve only to public addresses')
     return url
@@ -37,21 +60,23 @@ def download(url):
     session.trust_env = False
     try:
         for _ in range(6):
+            require_trusted(url)
             validate_url(url)
             # Pin the connection to a validated address to prevent DNS rebinding.
             parts = urlsplit(url)
-            addresses = socket.getaddrinfo(parts.hostname, parts.port or (443 if parts.scheme == 'https' else 80), type=socket.SOCK_STREAM)
-            if any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
+            hostname = article_hostname(url)
+            addresses = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+            if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
                 raise ValueError('Article destination changed to a private address')
             address = addresses[0][4][0]
             host = f'[{address}]' if ':' in address else address
             pinned = urlunsplit((parts.scheme, host, parts.path, parts.query, ''))
             adapter = requests.adapters.HTTPAdapter()
             if parts.scheme == 'https':
-                adapter.init_poolmanager(1, 1, assert_hostname=parts.hostname, server_hostname=parts.hostname)
+                adapter.init_poolmanager(1, 1, assert_hostname=hostname, server_hostname=hostname)
             session.mount(parts.scheme + '://', adapter)
             with session.get(pinned, stream=True, allow_redirects=False, timeout=(10,20),
-                             headers={'Host':parts.hostname, 'User-Agent':'lalaland-research/0.1'}) as response:
+                             headers={'Host':hostname, 'User-Agent':'lalaland-research/0.1'}) as response:
                 if response.is_redirect:
                     url = urljoin(url, response.headers['Location'])
                     continue

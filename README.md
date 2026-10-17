@@ -10,7 +10,8 @@ storage, and a shared browser dashboard.
 | Input | Enabled RSS feeds | Submitted arXiv, public PDF, or HTML article URLs |
 | Source material | RSS-provided summary or description | Extracted full article text with page/section references |
 | Output | A concise 2–4 sentence briefing | An engineering briefing targeting 800–1,200 words |
-| Model setting | `OLLAMA_MODEL` | `CORPUS_MODEL`, with optional per-article selection |
+| Model setting | `OLLAMA_MODEL` | `CORPUS_TRUSTED_DOMAINS` | LA-2 exact trusted hostnames, comma-separated | `Settings.corpus_trusted_domains` in `backend/config.py` |
+| `CORPUS_MODEL`, with optional per-article selection |
 | Scheduled processing | Daily briefing schedule | Overnight batch, default 03:00–05:00 America/Detroit |
 | Manual processing | **Run now** starts the daily briefing workflow | **Run queued articles now** starts a corpus batch |
 | Review | Read, rate 1–5, or dismiss | Read or rate 1–5 |
@@ -94,7 +95,7 @@ text and does not interpret figures, charts, or scanned pages. A vision-capable
 model selected in the dashboard still receives extracted text in this workflow.
 Check important claims against the original article.
 
-Fetching accepts public HTTP(S) URLs on standard ports, validates redirects, and
+Corpus fetching accepts only public HTTPS URLs on port 443, validates redirects, and
 pins connections to validated public IP addresses. Limits are 20 MiB per download,
 90 seconds downloading, five redirects, 300 PDF pages, and 500,000 extracted
 characters. Unsupported, oversized, or unreadable articles fail visibly.
@@ -219,6 +220,7 @@ Host services can be reached through `host.docker.internal` from containers.
 | LA-2 | `corpus_progress` | Current processing step, completion counts, retry attempt, and update time |
 | LA-2 | `corpus_generations` | Completed evidence chunks for resumable processing |
 | LA-2 | `corpus_reviews` | Read timestamps and 1–5 ratings |
+| LA-2 | `corpus_quarantine` | Blocked URL, reason, and quarantine timestamp |
 
 LA-1 feed text is transient. LA-2 retains extracted text and page/section references
 for full-text search, retries, and reproducibility; downloaded PDF files are
@@ -227,7 +229,7 @@ titles, article text, and briefings. Canonical URLs provide deduplication, with
 tracking parameters removed before comparison.
 
 Schema initialization is idempotent. For an existing database, LA-2's additive SQL
-migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/004_corpus_reviews.sql`.
+migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/005_corpus_quarantine.sql`.
 They create the new corpus tables and index while preserving existing articles
 and RSS records. There is no need to rerun the initial schema sync script for
 these corpus additions.
@@ -259,6 +261,7 @@ these corpus additions.
 | `GET /api/corpus/{id}` | Retrieve saved article, briefing, progress, and review state |
 | `GET /api/corpus/schedule` | Read the configured overnight window |
 | `POST /api/corpus/run-now` | Start or reuse the active manual batch; return immediately |
+| `POST /api/corpus/{id}/release` | Release quarantine after the original and blocked domains are configured as trusted |
 | `POST /api/corpus/{id}/read` | Mark a completed briefing read |
 | `POST /api/corpus/{id}/rate` | Rate with `{"rating": 4}` and mark read |
 | `POST /api/corpus/{id}/retry` | Queue a failed article using `{}` or `{"model": "another-installed-model"}` |
@@ -285,3 +288,30 @@ CORPUS_E2E=1 pytest tests/test_corpus_workflow.py::test_corpus_live_paper -q
 Set `CORPUS_E2E_MODEL` to override the model for that test. It can take several
 minutes depending on hardware. The test verifies persistence through schema
 reinitialization and new connections; it does not restart running app services.
+
+
+### Corpus trusted domains and quarantine
+
+`CORPUS_TRUSTED_DOMAINS` is a comma-separated list of exact hostnames. It defaults
+to `arxiv.org,www.arxiv.org,export.arxiv.org` in `Settings`. Subdomains are not
+implicitly trusted; wildcards, URLs, and suffix matches are not supported. An empty
+value trusts no domains. Keep the backend and worker configuration identical.
+
+Unknown domains are saved in quarantine without downloading the article or calling
+Ollama. Quarantined articles remain visible and searchable, but nightly and manual
+batches skip them. Every redirect is checked before connecting: an unknown HTTPS
+host quarantines the article; an HTTP downgrade, credentials, nonstandard port, or
+private destination fails validation. Existing queued articles are checked when
+processed. Previously completed briefings remain available.
+
+To approve a source, review the exact hostname, add it to `CORPUS_TRUSTED_DOMAINS`
+(including the existing hosts you still trust), and restart the backend and worker.
+Then select **Release after configuration update** in the article detail, or call
+`POST /api/corpus/{id}/release`. Release validates the original and blocked URLs
+against the configured policy and public DNS, then queues a new attempt. It does
+not start a batch or grant a per-article exception. Further redirects are checked
+again during fetching. The additive `corpus_quarantine` table records the blocked
+URL, reason, and timestamp; processing state remains separate.
+
+This policy applies to LA-2 article downloads. Local Ollama/Temporal addresses and
+LA-1 RSS fetching retain their existing configuration.

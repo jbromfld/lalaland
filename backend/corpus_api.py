@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 from backend.config import load_settings
 from backend.services import corpus_store as store
-from backend.services.article_extraction import canonical_article_url, validate_url
+from backend.services.article_extraction import canonical_article_url, validate_url, require_trusted, UntrustedDomain
 from backend.services.corpus_summary import installed_models
 from backend.temporal.corpus import CorpusBatchWorkflow
 from backend.temporal.client import TASK_QUEUE
@@ -67,8 +67,13 @@ async def submit(body: Submission):
     row = await run_in_threadpool(existing)
     if row is None:
         model = await run_in_threadpool(resolve_model, body.model)
-        row, _ = await run_in_threadpool(store.create, settings, url, canonical, model)
-    return row
+        reason = None
+        try:
+            require_trusted(url, settings.corpus_trusted_domains)
+        except UntrustedDomain as exc:
+            reason = str(exc)
+        row, _ = await run_in_threadpool(store.create, settings, url, canonical, model, reason)
+    return await run_in_threadpool(store.get, settings, row['id'])
 
 
 @router.get('/api/corpus')
@@ -112,6 +117,8 @@ async def retry(article_id: int, body: Retry = Retry()):
     current = await run_in_threadpool(store.get, settings, article_id)
     if current is None:
         raise HTTPException(404, 'Article not found')
+    if current.get('quarantine_url'):
+        raise HTTPException(409, 'Release this article from quarantine before retrying')
     if current['state'] != 'failed':
         raise HTTPException(409, 'Only failed articles can be retried')
     model = await run_in_threadpool(resolve_model, body.model) if body.model is not None else current['model']
@@ -139,3 +146,23 @@ def mark_read(article_id: int):
 @router.post('/api/corpus/{article_id}/rate')
 def rate(article_id: int, body: RatingRequest):
     return review_article(article_id, body.rating)
+
+
+@router.post('/api/corpus/{article_id}/release')
+async def release(article_id: int):
+    settings = load_settings()
+    row = await run_in_threadpool(store.get, settings, article_id)
+    if row is None:
+        raise HTTPException(404, 'Article not found')
+    if not row.get('quarantine_url'):
+        raise HTTPException(409, 'Article is not quarantined')
+    try:
+        for url in {row['original_url'], row['quarantine_url']}:
+            require_trusted(url, settings.corpus_trusted_domains)
+            await run_in_threadpool(validate_url, url)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(422, f'{exc}. Configure CORPUS_TRUSTED_DOMAINS on backend and worker before releasing.') from exc
+    released = await run_in_threadpool(store.release, settings, article_id)
+    if released is None:
+        raise HTTPException(409, 'Article was already released')
+    return released
