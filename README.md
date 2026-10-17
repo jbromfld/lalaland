@@ -189,8 +189,16 @@ schedules, and serves the dashboard.
 
 ## Run with Docker
 
-Configure `.env`, including `DATABASE_URL`, `OLLAMA_BASE_URL`, the model choices,
-`TEMPORAL_ADDRESS`, `BACKEND_PORT`, and `FRONTEND_PORT`, then run:
+For a new installation, copy [.env.example](.env.example) without overwriting an
+existing `.env`:
+
+```bash
+cp -n .env.example .env
+```
+
+Edit the database credentials and service addresses for your installation.
+The example includes Docker ports and optional overrides for both agents;
+commented settings use the defaults in `backend/config.py`. Then run:
 
 ```bash
 docker compose up --build
