@@ -128,6 +128,14 @@ async def retry(article_id: int, body: Retry = Retry()):
     return row
 
 
+@router.delete('/api/corpus/{article_id}')
+def delete(article_id: int):
+    row = store.delete(load_settings(), article_id)
+    if row is None:
+        raise HTTPException(404, 'Article not found')
+    return {'id': article_id, 'deleted': True}
+
+
 def review_article(article_id, rating=None):
     settings = load_settings()
     row = store.review(settings, article_id, rating)

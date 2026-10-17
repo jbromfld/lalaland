@@ -900,6 +900,7 @@
         <p>${escapeHtml(corpusTimingText(item))}</p>
         <a href="${safeUrl(item.resolved_url || item.original_url)}" target="_blank" rel="noopener noreferrer">Original article</a>
         <p>${escapeHtml(item.error || '')}</p>
+        <button type="button" class="danger" data-corpus-delete="${item.id}">Delete article</button>
         ${item.quarantine_url ? `<p>${escapeHtml(item.quarantine_reason)} · Blocked URL: ${escapeHtml(item.quarantine_url)}. Add the exact hostname to CORPUS_TRUSTED_DOMAINS on backend and worker, then release.</p><button type="button" data-corpus-release="${item.id}">Release after configuration update</button>` : ''}
         ${item.state === 'failed' ? `<button type="button" data-corpus-retry="${item.id}">Queue retry (uses selected model, or keeps original)</button>` : ''}
         ${Object.entries(item.briefing).map(([heading,text]) => `<section><h3>${escapeHtml(heading)}</h3><div class="summary">${escapeHtml(text)}</div></section>`).join('')}
@@ -964,6 +965,15 @@
     document.getElementById('corpus-view').addEventListener('click', async event => {
       const target = event.target.closest('button'); if (!target) return;
       try {
+        if (target.dataset.corpusDelete) {
+          if (!window.confirm('Permanently delete this article, its briefing, and all related saved data?')) return;
+          target.disabled = true;
+          await api(`/api/corpus/${target.dataset.corpusDelete}`, {method:'DELETE'});
+          if (String(corpusSelected) === target.dataset.corpusDelete) clearCorpusDetail();
+          corpusStatus.textContent = 'Article permanently deleted.';
+          await loadCorpus();
+          return;
+        }
         if (target.dataset.corpusRead || target.dataset.corpusRate) {
           const id = target.dataset.corpusRead || target.dataset.corpusRate;
           document.querySelectorAll('#corpus-detail button').forEach(button => { button.disabled = true; });

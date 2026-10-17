@@ -108,6 +108,9 @@ def search(settings, keyword, page, limit, *, include_reviewed=False):
 def set_progress(settings, article_id, attempt, activity_attempt, stage, current, total, completed):
     """Ignore stale activities after manual retry, without touching article text or search indexes."""
     with get_connection(settings) as conn:
+        if not conn.execute('SELECT id FROM corpus_articles WHERE id=%s FOR KEY SHARE',
+                            (article_id,)).fetchone():
+            return
         conn.execute("""INSERT INTO corpus_progress
             (article_id,attempt,activity_attempt,stage,current,total,completed)
             SELECT id,attempt,%s,%s,%s,%s,%s FROM corpus_articles
@@ -131,6 +134,11 @@ def cached_generation(settings, article, digest):
 
 def save_generation(settings, article, digest, response):
     with get_connection(settings) as conn:
+        # Serialize with deletion, so an in-flight model response cannot leave
+        # orphaned cache entries or fail a foreign-key check after deletion.
+        if not conn.execute('SELECT id FROM corpus_articles WHERE id=%s FOR KEY SHARE',
+                            (article['id'],)).fetchone():
+            return
         conn.execute("""INSERT INTO corpus_generations(article_id,model,prompt_version,prompt_hash,response)
             VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
             (article['id'],article['model'],article['prompt_version'],digest,response))
@@ -166,3 +174,10 @@ def release(settings, article_id):
         if row:
             return conn.execute("""UPDATE corpus_articles SET state='queued',error=NULL,
                 attempt=attempt+1,updated_at=NOW() WHERE id=%s RETURNING *""", (article_id,)).fetchone()
+
+
+def delete(settings, article_id):
+    """Foreign-key cascades remove progress, evidence, reviews, and quarantine."""
+    with get_connection(settings) as conn:
+        return conn.execute('DELETE FROM corpus_articles WHERE id=%s RETURNING id',
+                            (article_id,)).fetchone()
