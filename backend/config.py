@@ -17,7 +17,7 @@ class Settings:
     app_title: str
     service_name: str
     frontend_dir: Path
-    corpus_model: str = "qwen3:4b"
+    corpus_model: str = "gemma4:e4b"
     corpus_ollama_timeout_seconds: int = 300
     corpus_final_timeout_seconds: int = 900
     corpus_schedule_hour: int = 3

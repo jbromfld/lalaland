@@ -269,7 +269,7 @@ def test_corpus_model_config_is_independent(monkeypatch):
     monkeypatch.delenv('CORPUS_MODEL',raising=False)
     monkeypatch.setenv('OLLAMA_MODEL','rss-model')
     settings=load_settings()
-    assert settings.corpus_model=='qwen3:4b' and settings.ollama_model=='rss-model'
+    assert settings.corpus_model=='gemma4:e4b' and settings.ollama_model=='rss-model'
     monkeypatch.setenv('CORPUS_MODEL','corpus-model')
     settings=load_settings()
     assert settings.corpus_model=='corpus-model' and settings.ollama_model=='rss-model'

@@ -1,7 +1,6 @@
 # Local Agents: LA-1 RSS Briefing and LA-2 Research
 
-`lalaland` provides two local agents for a DevOps engineer moving toward forward
-deployed AI engineering. **LA-1** keeps you current through short RSS briefings.
+`lalaland` provides two local agents for research summaries. **LA-1** keeps you current through short RSS briefings.
 **LA-2** turns research papers and articles you choose into practical engineering
 deep dives. Both use local Ollama inference, durable Temporal workflows, Postgres
 storage, and a shared browser dashboard.
