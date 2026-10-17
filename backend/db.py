@@ -90,6 +90,9 @@ def get_connection(settings: Settings) -> Iterator[Connection]:
 def initialize_database(settings: Settings) -> None:
     with get_connection(settings) as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(765439103)")
+            from backend.services.corpus_store import SCHEMA
+            cur.execute(SCHEMA)
             for statement in SCHEMA_STATEMENTS:
                 cur.execute(statement)
         conn.commit()

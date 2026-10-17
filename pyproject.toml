@@ -9,6 +9,9 @@ dependencies = [
     "temporalio~=1.32",
     "requests~=2.34",
     "feedparser~=6.0",
+    "pypdf>=6,<7",
+    "trafilatura>=2,<3",
+    "tzdata>=2025.2",
     "psycopg[binary]~=3.3",
     "opentelemetry-api~=1.42",
     "opentelemetry-sdk~=1.42",
@@ -20,6 +23,7 @@ dependencies = [
 dev = [
     "pytest~=8.0",
     "pytest-asyncio~=0.24",
+    "httpx>=0.28,<1",
 ]
 
 [build-system]

@@ -8,6 +8,7 @@ from langsmith import traceable
 from opentelemetry import trace
 
 from backend.config import Settings
+from backend.services.ollama_queue import inference_slot
 
 
 def _remove_reasoning(text: str) -> str:
@@ -81,20 +82,21 @@ class OllamaSummarizer:
             span.set_attribute("article.url", article_url)
             span.set_attribute("gen_ai.request.prompt_chars", len(prompt))
 
-            summary = _generate_summary(
-                prompt,
-                ollama_base_url=self.settings.ollama_base_url,
-                ollama_model=self.settings.ollama_model,
-                ollama_timeout_seconds=self.settings.ollama_timeout_seconds,
-                langsmith_extra={
-                    "metadata": {
-                        "article.source_name": source_name,
-                        "article.url": article_url,
-                        "gen_ai.request.prompt_chars": len(prompt),
+            with inference_slot(self.settings):
+                summary = _generate_summary(
+                    prompt,
+                    ollama_base_url=self.settings.ollama_base_url,
+                    ollama_model=self.settings.ollama_model,
+                    ollama_timeout_seconds=self.settings.ollama_timeout_seconds,
+                    langsmith_extra={
+                        "metadata": {
+                            "article.source_name": source_name,
+                            "article.url": article_url,
+                            "gen_ai.request.prompt_chars": len(prompt),
+                        },
+                        "tags": ["ollama", "granite"],
                     },
-                    "tags": ["ollama", "granite"],
-                },
-            )
+                )
 
             span.set_attribute("gen_ai.response.chars", len(summary))
             span.add_event(

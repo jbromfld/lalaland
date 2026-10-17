@@ -17,6 +17,12 @@ class Settings:
     app_title: str
     service_name: str
     frontend_dir: Path
+    corpus_model: str = "qwen3:4b"
+    corpus_ollama_timeout_seconds: int = 300
+    corpus_final_timeout_seconds: int = 900
+    corpus_schedule_hour: int = 3
+    corpus_end_hour: int = 5
+    corpus_schedule_timezone: str = "America/Detroit"
 
 
 def load_settings() -> Settings:
@@ -26,7 +32,7 @@ def load_settings() -> Settings:
     return Settings(
         database_url=os.getenv("DATABASE_URL", "postgresql://localhost:5432/lalaland"),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-        ollama_model=os.getenv("OLLAMA_MODEL", "granite3.3:8b"),
+        ollama_model=os.getenv("OLLAMA_MODEL", "granite4.2:4b"),
         ollama_timeout_seconds=int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120")),
         schedule_hour=int(os.getenv("SCHEDULE_HOUR", "6")),
         schedule_minute=int(os.getenv("SCHEDULE_MINUTE", "0")),
@@ -34,4 +40,10 @@ def load_settings() -> Settings:
         app_title=os.getenv("APP_TITLE", "Research Briefing"),
         service_name=os.getenv("OTEL_SERVICE_NAME", "research-briefing"),
         frontend_dir=project_root / "frontend",
+        corpus_model=os.getenv("CORPUS_MODEL", "gemma4:e4b"),
+        corpus_ollama_timeout_seconds=int(os.getenv("CORPUS_OLLAMA_TIMEOUT_SECONDS", "300")),
+        corpus_final_timeout_seconds=int(os.getenv("CORPUS_FINAL_TIMEOUT_SECONDS", "900")),
+        corpus_schedule_hour=int(os.getenv("CORPUS_SCHEDULE_HOUR", "3")),
+        corpus_end_hour=int(os.getenv("CORPUS_END_HOUR", "5")),
+        corpus_schedule_timezone=os.getenv("CORPUS_SCHEDULE_TIMEZONE", "America/Detroit"),
     )
