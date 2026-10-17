@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import logging
-import os
 
-from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow, ScheduleSpec
+from temporalio.client import Client, Schedule, ScheduleActionStartWorkflow, ScheduleSpec, SchedulePolicy, ScheduleOverlapPolicy, ScheduleUpdate
 from temporalio.service import RPCError, RPCStatusCode
 
-from backend.config import Settings
+from backend.config import Settings, load_settings
 
 from .workflows import DailyBriefingWorkflow
+from .corpus import NightlyCorpusWorkflow
 
 
 logger = logging.getLogger(__name__)
@@ -19,11 +19,11 @@ DAILY_BRIEFING_SCHEDULE_ID = "daily-briefing-schedule"
 
 
 def temporal_address() -> str:
-    return os.getenv("TEMPORAL_ADDRESS", "host.docker.internal:30733")
+    return load_settings().temporal_address
 
 
 def temporal_namespace() -> str:
-    return os.getenv("TEMPORAL_NAMESPACE", "lalaland")
+    return load_settings().temporal_namespace
 
 
 async def connect() -> Client:
@@ -62,3 +62,25 @@ async def ensure_daily_briefing_schedule(client: Client, settings: Settings) -> 
         settings.schedule_minute,
         settings.schedule_timezone,
     )
+
+
+async def ensure_corpus_schedule(client: Client, settings: Settings) -> None:
+    if not 0 <= settings.corpus_schedule_hour < settings.corpus_end_hour <= 23:
+        raise ValueError('Invalid corpus processing window')
+    schedule = Schedule(
+        action=ScheduleActionStartWorkflow(NightlyCorpusWorkflow.run,
+            id='nightly-corpus-workflow', task_queue=TASK_QUEUE),
+        spec=ScheduleSpec(cron_expressions=[f'0 {settings.corpus_schedule_hour} * * *'],
+                          time_zone_name=settings.corpus_schedule_timezone),
+        policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
+    )
+    handle = client.get_schedule_handle('nightly-corpus-schedule')
+    try:
+        await handle.describe()
+    except RPCError as exc:
+        if exc.status != RPCStatusCode.NOT_FOUND:
+            raise
+        await client.create_schedule('nightly-corpus-schedule', schedule)
+    else:
+        # Updating only this schedule leaves the daily briefing unchanged.
+        await handle.update(lambda _: ScheduleUpdate(schedule=schedule))

@@ -168,7 +168,7 @@
 
     .summary {
       margin: 14px 0 18px;
-      line-height: 1.5;
+      line-height: 1.8;
       color: #e5e7eb;
       white-space: pre-wrap;
     }
@@ -185,6 +185,8 @@
       min-width: 42px;
       border-radius: 999px;
     }
+
+    .rating-group button[aria-pressed="true"] { background: #38bdf8; color: #082f49; }
 
     .empty {
       padding: 28px;
@@ -299,6 +301,8 @@
         position: static;
       }
     }
+    #corpus-results button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+    #corpus-detail { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
@@ -314,6 +318,7 @@
         </div>
 
         <nav class="nav-list">
+          <button class="nav-button" type="button" data-view-target="corpus-view">Corpus</button>
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
           <button class="nav-button" type="button" data-view-target="search-view">Search</button>
@@ -327,6 +332,24 @@
       </aside>
 
       <section class="content">
+        <section class="panel view" id="corpus-view">
+          <div class="view-header"><div><h2>Engineering research corpus</h2><p>Queue public papers or articles for an overnight engineering briefing.</p></div></div>
+          <form id="corpus-form">
+            <label>Article URL <input id="corpus-url" type="url" required maxlength="2048" placeholder="https://arxiv.org/pdf/2607.01077" /></label>
+            <label>Ollama model <select id="corpus-model"><option value="">Configured default</option></select></label>
+            <button type="submit" class="primary">Queue article</button>
+          </form>
+          <button id="corpus-run-now" type="button">Run queued articles now</button>
+          <p id="corpus-schedule" role="status"></p>
+          <p id="corpus-model-status" role="status"></p>
+          <p id="corpus-status" role="status"></p>
+          <form id="corpus-search"><label>Search corpus <input id="corpus-keyword" type="search" maxlength="200" placeholder="Search titles, full text, and briefings" /></label><div class="actions"><button type="submit">Search all saved articles</button><button type="button" id="corpus-unread">Show unread</button></div></form>
+          <p id="corpus-results-label">Unread articles</p>
+          <div id="corpus-results"></div>
+          <button type="button" id="corpus-prev">Previous</button><span id="corpus-page"></span><button type="button" id="corpus-next">Next</button>
+          <article id="corpus-detail" aria-live="polite"></article>
+        </section>
+
         <section class="panel view" id="sources-view">
           <div class="view-header">
             <div>
@@ -829,6 +852,153 @@
       });
     });
 
+    const corpusStatus = document.getElementById('corpus-status');
+    const corpusModel = document.getElementById('corpus-model');
+    let corpusPage = 1, corpusSelected = null, corpusBusy = false, corpusDetailPending = false, corpusListPending = false, corpusSearching = false;
+    async function loadCorpusModels() {
+      try {
+        const data = await api('/api/ollama/models');
+        corpusModel.innerHTML = `<option value="">Configured default (${escapeHtml(data.default_model)})</option>` +
+          data.models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
+        document.getElementById('corpus-model-status').textContent = data.error || data.warning || '';
+      } catch (error) { document.getElementById('corpus-model-status').textContent = error.message; }
+    }
+    function corpusStateText(item) {
+      if (item.state === 'queued') return 'Queued for overnight processing';
+      if (item.state !== 'summarizing' || !item.progress) return item.state;
+      const p = item.progress;
+      const stages = {
+        reading: `Reading paper: chunk ${p.current} of ${p.total} (${p.completed} complete)`,
+        condensing: `Condensing evidence: batch ${p.current} of ${p.total} (${p.completed} complete)`,
+        writing: p.completed ? 'Saving briefing' : 'Writing engineering briefing'
+      };
+      const retry = p.activity_attempt > 1 ? ` · processing attempt ${p.activity_attempt}` : '';
+      return (stages[p.stage] || item.state) + retry;
+    }
+    function corpusTimingText(item) {
+      if (['queued','ready','failed'].includes(item.state)) return '';
+      const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(item.created_at)) / 1000));
+      const updated = item.progress?.updated_at || item.updated_at;
+      return `Elapsed ${Math.floor(seconds / 60)}m ${seconds % 60}s. Last progress update: ${new Date(updated).toLocaleTimeString()}. Local model calls may take several minutes.`;
+    }
+    function corpusReviewText(item) {
+      return item.rating != null ? `Rated ${item.rating}/5 · Read` : item.read_at ? 'Read' : '';
+    }
+    function clearCorpusDetail() {
+      corpusSelected = null;
+      corpusDetailPending = false;
+      document.getElementById('corpus-detail').replaceChildren();
+    }
+    async function showCorpus(id) {
+      corpusSelected = id;
+      const item = await api(`/api/corpus/${id}`);
+      if (String(corpusSelected) !== String(id)) return;
+      corpusDetailPending = !['ready','failed'].includes(item.state);
+      document.getElementById('corpus-detail').innerHTML = `<h2>${escapeHtml(item.title || item.original_url)}</h2>
+        <p>${escapeHtml(corpusStateText(item))} · Model: ${escapeHtml(item.model)}</p>
+        <p>${escapeHtml(corpusTimingText(item))}</p>
+        <a href="${safeUrl(item.resolved_url || item.original_url)}" target="_blank" rel="noopener noreferrer">Original article</a>
+        <p>${escapeHtml(item.error || '')}</p>
+        ${item.state === 'failed' ? `<button type="button" data-corpus-retry="${item.id}">Queue retry (uses selected model, or keeps original)</button>` : ''}
+        ${Object.entries(item.briefing).map(([heading,text]) => `<section><h3>${escapeHtml(heading)}</h3><div class="summary">${escapeHtml(text)}</div></section>`).join('')}
+        ${item.state === 'ready' ? `<div class="actions">
+          <button class="ghost" type="button" data-corpus-read="${item.id}" ${item.read_at ? 'disabled' : ''}>${item.read_at ? 'Read' : 'Mark read'}</button>
+          <div class="rating-group" role="group" aria-label="Rate this article from 1 to 5">
+            ${[1,2,3,4,5].map(value => `<button type="button" data-corpus-rate="${item.id}" data-rating="${value}" aria-label="Rate ${value} out of 5" aria-pressed="${item.rating === value}">${value}</button>`).join('')}
+          </div><span>${escapeHtml(corpusReviewText(item))}</span>
+        </div>` : ''}`;
+    }
+    async function loadCorpus() {
+      const params = new URLSearchParams({keyword:corpusSearching ? document.getElementById('corpus-keyword').value : '', page:corpusPage, include_reviewed:corpusSearching});
+      const data = await api(`/api/corpus?${params}`);
+      if (corpusPage > 1 && !data.items.length) {
+        corpusPage = Math.max(1, Math.ceil(data.total / data.limit));
+        return loadCorpus();
+      }
+      document.getElementById('corpus-results-label').textContent = corpusSearching ? 'Saved articles (includes read and rated)' : 'Unread articles';
+      corpusListPending = data.items.some(item => !['ready','failed'].includes(item.state));
+      document.getElementById('corpus-results').innerHTML = data.items.map(item => `<p><button type="button" data-corpus-id="${item.id}">${escapeHtml(item.title || item.original_url)}</button> ${escapeHtml(corpusStateText(item))} · ${escapeHtml(item.model)} ${escapeHtml(corpusReviewText(item))}</p>`).join('') || '<p>No articles found.</p>';
+      document.getElementById('corpus-page').textContent = ` Page ${data.page} · ${data.total} articles `;
+      document.getElementById('corpus-prev').disabled = corpusPage === 1;
+      document.getElementById('corpus-next').disabled = corpusPage * data.limit >= data.total;
+    }
+    document.getElementById('corpus-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = event.target.querySelector('button'); button.disabled = true;
+      try {
+        const body = {url:document.getElementById('corpus-url').value};
+        if (corpusModel.value) body.model = corpusModel.value;
+        const item = await api('/api/corpus', {method:'POST', body:JSON.stringify(body)});
+        corpusStatus.textContent = 'Article queued for the next overnight processing window.';
+        corpusPage = 1; corpusSearching = false; await loadCorpus(); await showCorpus(item.id);
+      } catch (error) { corpusStatus.textContent = error.message; await loadCorpus(); }
+      finally { button.disabled = false; }
+    });
+    document.getElementById('corpus-run-now').addEventListener('click', async event => {
+      event.target.disabled = true;
+      try {
+        const result = await api('/api/corpus/run-now', {method:'POST'});
+        corpusStatus.textContent = result.message;
+        await loadCorpus();
+      } catch(error) { corpusStatus.textContent = error.message; }
+      finally { event.target.disabled = false; }
+    });
+    document.getElementById('corpus-search').addEventListener('submit', async event => {
+      event.preventDefault(); corpusPage = 1; corpusSearching = true; clearCorpusDetail();
+      try { await loadCorpus(); } catch(error) { corpusStatus.textContent = error.message; }
+    });
+    document.getElementById('corpus-unread').addEventListener('click', async () => {
+      corpusSearching = false; corpusPage = 1;
+      document.getElementById('corpus-keyword').value = '';
+      clearCorpusDetail();
+      try { await loadCorpus(); } catch(error) { corpusStatus.textContent = error.message; }
+    });
+    for (const [id, delta] of [['corpus-prev',-1],['corpus-next',1]]) {
+      document.getElementById(id).addEventListener('click', async () => {
+        corpusPage += delta;
+        try { await loadCorpus(); } catch(error) { corpusStatus.textContent = error.message; }
+      });
+    }
+    document.getElementById('corpus-view').addEventListener('click', async event => {
+      const target = event.target.closest('button'); if (!target) return;
+      try {
+        if (target.dataset.corpusRead || target.dataset.corpusRate) {
+          const id = target.dataset.corpusRead || target.dataset.corpusRate;
+          document.querySelectorAll('#corpus-detail button').forEach(button => { button.disabled = true; });
+          const rating = Number(target.dataset.rating);
+          await api(`/api/corpus/${id}/${target.dataset.corpusRead ? 'read' : 'rate'}`, {
+            method:'POST', ...(target.dataset.corpusRate ? {body:JSON.stringify({rating})} : {})
+          });
+          clearCorpusDetail();
+          corpusStatus.textContent = target.dataset.corpusRate ? `Rated ${rating}/5. Available in saved-article search.` : 'Marked read. Available in saved-article search.';
+          await loadCorpus();
+        }
+        if (target.dataset.corpusId) await showCorpus(target.dataset.corpusId);
+        if (target.dataset.corpusRetry) {
+          target.disabled = true;
+          const body = corpusModel.value ? {model:corpusModel.value} : {};
+          await api(`/api/corpus/${target.dataset.corpusRetry}/retry`, {method:'POST',body:JSON.stringify(body)});
+          await showCorpus(target.dataset.corpusRetry); await loadCorpus();
+        }
+      } catch(error) {
+        corpusStatus.textContent = error.message;
+        if (corpusSelected) await showCorpus(corpusSelected).catch(() => {});
+        target.disabled = false;
+      }
+    });
+    async function refreshCorpus() {
+      if (corpusBusy) return;
+      corpusBusy = true;
+      try { await loadCorpus(); if (corpusSelected && corpusDetailPending) await showCorpus(corpusSelected); }
+      catch(error) { corpusStatus.textContent = error.message; }
+      finally { corpusBusy = false; }
+    }
+    document.querySelector('[data-view-target="corpus-view"]').addEventListener('click', refreshCorpus);
+    setInterval(() => { if (document.getElementById('corpus-view').classList.contains('is-active') && (corpusListPending || corpusDetailPending)) refreshCorpus(); }, 5000);
+    api('/api/corpus/schedule').then(schedule => {
+      document.getElementById('corpus-schedule').textContent = `Nightly processing: ${String(schedule.start_hour).padStart(2,'0')}:00–${String(schedule.end_hour).padStart(2,'0')}:00 ${schedule.timezone}. Articles run one at a time; unfinished work resumes the next night.`;
+    }).catch(error => { corpusStatus.textContent = error.message; });
+    loadCorpusModels();
     resetSourceForm();
     refreshAll();
   </script>
