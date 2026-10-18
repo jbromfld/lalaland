@@ -28,12 +28,19 @@ class RatingRequest(BaseModel):
 
 def resolve_model(model):
     settings = load_settings()
-    if model is None:
-        return settings.corpus_model
     try:
         models = installed_models(settings)
     except (requests.RequestException, ValueError, KeyError) as exc:
+        if model is None:
+            return settings.corpus_model
         raise HTTPException(503, 'Could not validate model: Ollama model discovery unavailable') from exc
+    if model is None:
+        if settings.corpus_model not in models:
+            raise HTTPException(
+                503,
+                f'Configured default model {settings.corpus_model!r} is not installed on the configured Ollama server.',
+            )
+        return settings.corpus_model
     if model not in models:
         raise HTTPException(422, 'Selected model is not installed on the configured Ollama server')
     return model

@@ -18,6 +18,15 @@ def test_canonical(url, expected):
     assert extraction.canonical_article_url(url) == expected
 
 
+def test_arxiv_subdomains_canonicalize_to_primary_domain():
+    assert extraction.canonical_article_url(
+        'https://export.arxiv.org/pdf/2607.01077'
+    ) == 'https://arxiv.org/abs/2607.01077'
+    assert extraction.canonical_article_url(
+        'https://sub.arxiv.org/abs/2607.01077'
+    ) == 'https://arxiv.org/abs/2607.01077'
+
+
 @pytest.mark.parametrize('url', ['file:///tmp/paper','http://user:pass@example.org','http://localhost','https://example.org:999'])
 def test_private_or_invalid_urls(monkeypatch, url):
     monkeypatch.setattr(extraction.socket, 'getaddrinfo', lambda *a,**kw:[(2,1,6,'',('127.0.0.1',80))])
@@ -54,11 +63,15 @@ def test_invalid_briefing(monkeypatch):
 def test_model_resolution(monkeypatch):
     settings=replace(load_settings(),corpus_model='default',ollama_model='rss')
     monkeypatch.setattr(corpus_api,'load_settings',lambda:settings)
-    monkeypatch.setattr(corpus_api,'installed_models',lambda s:['other'])
+    monkeypatch.setattr(corpus_api,'installed_models',lambda s:['other', 'default'])
     assert corpus_api.resolve_model(None) == 'default'
     assert corpus_api.resolve_model('other') == 'other'
     with pytest.raises(corpus_api.HTTPException) as error: corpus_api.resolve_model('missing')
     assert error.value.status_code == 422
+    monkeypatch.setattr(corpus_api,'installed_models',lambda s:['other'])
+    with pytest.raises(corpus_api.HTTPException,match='Configured default model') as error:
+        corpus_api.resolve_model(None)
+    assert error.value.status_code == 503
 
 
 def test_discovery_failure_preserves_default(monkeypatch):

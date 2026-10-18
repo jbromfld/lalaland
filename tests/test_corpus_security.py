@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import httpx
 import pytest
+import requests
 from fastapi import FastAPI
 from temporalio.exceptions import ApplicationError
 from temporalio.testing import ActivityEnvironment
@@ -25,18 +26,21 @@ def test_https_url_rejects_unsafe_syntax(url):
 
 
 @pytest.mark.parametrize('host', [
-    'arxiv.org.evil.org', 'evil-arxiv.org', 'sub.arxiv.org',
+    'arxiv.org.evil.org', 'evil-arxiv.org',
     'arxiv.org.', 'аrxiv.org',  # Cyrillic lookalike.
 ])
-def test_trust_requires_exact_hostname(host):
+def test_trust_rejects_hosts_outside_trusted_domain(host):
     with pytest.raises(extraction.UntrustedDomain):
         extraction.require_trusted(f'https://{host}/paper', ('arxiv.org',))
 
 
-def test_config_normalizes_hosts_and_empty_trusts_none(monkeypatch):
+def test_config_normalizes_domains_and_empty_trusts_none(monkeypatch):
+    assert load_settings().corpus_trusted_domains == ('arxiv.org', 'neurips.cc')
     monkeypatch.setenv('CORPUS_TRUSTED_DOMAINS', ' ARXIV.org, bücher.de,arxiv.org ')
     assert load_settings().corpus_trusted_domains == ('arxiv.org', 'xn--bcher-kva.de')
     extraction.require_trusted('https://ARXIV.org/paper', load_settings().corpus_trusted_domains)
+    extraction.require_trusted('https://export.arxiv.org/paper', load_settings().corpus_trusted_domains)
+    extraction.require_trusted('https://sub.bücher.de/paper', load_settings().corpus_trusted_domains)
     monkeypatch.setenv('CORPUS_TRUSTED_DOMAINS', '')
     assert load_settings().corpus_trusted_domains == ()
     with pytest.raises(extraction.UntrustedDomain):
@@ -87,6 +91,10 @@ async def test_quarantine_submission_duplicate_and_release(settings, monkeypatch
     settings = replace(settings, corpus_trusted_domains=('arxiv.org',))
     monkeypatch.setattr(corpus_api, 'load_settings', lambda: settings)
     monkeypatch.setattr(corpus_api, 'validate_url', lambda url: url)
+    monkeypatch.setattr(
+        corpus_api, 'installed_models',
+        Mock(side_effect=requests.ConnectionError('Ollama is offline')),
+    )
     app = FastAPI()
     app.include_router(corpus_api.router)
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
@@ -146,7 +154,7 @@ def test_existing_queued_unknown_domain_is_quarantined(settings, monkeypatch):
 
 
 def test_trusted_redirect_retains_tls_hostname_and_public_pin(monkeypatch):
-    monkeypatch.setenv('CORPUS_TRUSTED_DOMAINS', 'arxiv.org,export.arxiv.org')
+    monkeypatch.setenv('CORPUS_TRUSTED_DOMAINS', 'arxiv.org')
     monkeypatch.setattr(extraction.socket, 'getaddrinfo', lambda *a, **kw: [(2,1,6,'',('93.184.216.34',443))])
     responses = [Mock(is_redirect=True, headers={'Location':'https://export.arxiv.org/paper'}),
                  Mock(is_redirect=False, headers={'Content-Type':'application/pdf'})]

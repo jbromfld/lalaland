@@ -35,7 +35,7 @@ def article_hostname(url):
 def require_trusted(url, domains=None):
     host = article_hostname(url)
     domains = load_settings().corpus_trusted_domains if domains is None else domains
-    if host not in domains:
+    if not any(host == domain or host.endswith('.' + domain) for domain in domains):
         raise UntrustedDomain(url)
     return url
 
@@ -50,7 +50,8 @@ def validate_url(url):
 
 def canonical_article_url(url):
     p = urlsplit(url)
-    match = ARXIV.fullmatch(p.path) if p.hostname in ('arxiv.org','www.arxiv.org','export.arxiv.org') else None
+    host = (p.hostname or '').lower()
+    match = ARXIV.fullmatch(p.path) if host == 'arxiv.org' or host.endswith('.arxiv.org') else None
     return 'https://arxiv.org/abs/' + match[1] if match else canonicalize_url(url)
 
 
