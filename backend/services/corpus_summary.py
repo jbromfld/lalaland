@@ -32,7 +32,17 @@ def generate(settings, model, prompt, structured=False):
                              'required':HEADINGS, 'additionalProperties':False}
     response = requests.post(f'{settings.ollama_base_url.rstrip("/")}/api/generate', json=payload,
                              timeout=settings.corpus_final_timeout_seconds if structured else settings.corpus_ollama_timeout_seconds)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        if response.status_code == 404:
+            detail = response.text.strip()[:300]
+            message = f'Ollama generation request for model {model!r} returned 404'
+            if detail:
+                message += f': {detail}'
+            message += '. Check OLLAMA_BASE_URL and verify that the model is installed.'
+            raise requests.HTTPError(message, response=response, request=response.request) from exc
+        raise
     body = response.json()
     raw = body.get('response') if isinstance(body, dict) else None
     if not isinstance(raw, str):

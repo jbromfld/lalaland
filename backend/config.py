@@ -10,7 +10,7 @@ from pathlib import Path
 class Settings:
     database_url: str = "postgresql://localhost:5432/lalaland"
     ollama_base_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "granite4.2:4b"
+    ollama_model: str = "granite4.2:3b"
     ollama_timeout_seconds: int = 120
     schedule_hour: int = 6
     schedule_minute: int = 0
@@ -18,8 +18,8 @@ class Settings:
     app_title: str = "Research Briefing"
     service_name: str = "research-briefing"
     frontend_dir: Path = Path(__file__).resolve().parent.parent / "frontend"
-    corpus_trusted_domains: tuple[str, ...] = ("arxiv.org", "www.arxiv.org", "export.arxiv.org")
-    corpus_model: str = "gemma4:e4b"
+    corpus_trusted_domains: tuple[str, ...] = ("arxiv.org", "neurips.cc")
+    corpus_model: str = "granite4.2:3b"
     corpus_ollama_timeout_seconds: int = 300
     corpus_final_timeout_seconds: int = 900
     corpus_schedule_hour: int = 3
@@ -39,7 +39,7 @@ def trusted_domains(value: str) -> tuple[str, ...]:
             re.fullmatch(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?', label)
             for label in domain.split('.')
         ):
-            raise ValueError('CORPUS_TRUSTED_DOMAINS must contain exact hostnames, without URLs, ports, or wildcards')
+            raise ValueError('CORPUS_TRUSTED_DOMAINS must contain DNS domains, without URLs, ports, or wildcards')
         domains.append(domain)
     return tuple(dict.fromkeys(domains))
 

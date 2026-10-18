@@ -1,4 +1,5 @@
 import json
+import requests
 from unittest.mock import Mock
 
 import pytest
@@ -58,3 +59,15 @@ def test_corpus_generation_failure_is_traced(monkeypatch):
             )
     run, = completed
     assert 'Ollama returned an empty response' in run.error
+
+
+def test_ollama_404_explains_model_or_endpoint_problem(monkeypatch):
+    response = requests.Response()
+    response.status_code = 404
+    response.url = 'http://ollama:11434/api/generate'
+    response._content = b'{"error":"model not found"}'
+    monkeypatch.setattr(summary.requests, 'post', Mock(return_value=response))
+
+    with pytest.raises(requests.HTTPError, match='model not found') as error:
+        summary.generate(Settings(), 'missing:latest', 'Prompt')
+    assert 'Check OLLAMA_BASE_URL' in str(error.value)

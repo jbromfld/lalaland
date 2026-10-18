@@ -149,6 +149,27 @@
       gap: 16px;
     }
 
+    .corpus-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-bottom: 16px;
+    }
+
+    .corpus-table th,
+    .corpus-table td {
+      padding: 12px 10px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+      overflow-wrap: anywhere;
+    }
+
+    .corpus-table th:first-child { width: 50%; }
+    .corpus-table th:nth-child(2) { width: 30%; }
+    .corpus-table th:last-child { width: 20%; }
+    .corpus-table .meta { margin-top: 6px; }
+
     .card {
       padding: 20px;
     }
@@ -901,7 +922,7 @@
         <a href="${safeUrl(item.resolved_url || item.original_url)}" target="_blank" rel="noopener noreferrer">Original article</a>
         <p>${escapeHtml(item.error || '')}</p>
         <button type="button" class="danger" data-corpus-delete="${item.id}">Delete article</button>
-        ${item.quarantine_url ? `<p>${escapeHtml(item.quarantine_reason)} · Blocked URL: ${escapeHtml(item.quarantine_url)}. Add the exact hostname to CORPUS_TRUSTED_DOMAINS on backend and worker, then release.</p><button type="button" data-corpus-release="${item.id}">Release after configuration update</button>` : ''}
+        ${item.quarantine_url ? `<p>${escapeHtml(item.quarantine_reason)} · Blocked URL: ${escapeHtml(item.quarantine_url)}. Add its DNS domain to CORPUS_TRUSTED_DOMAINS on backend and worker, then release.</p><button type="button" data-corpus-release="${item.id}">Release after configuration update</button>` : ''}
         ${item.state === 'failed' ? `<button type="button" data-corpus-retry="${item.id}">Queue retry (uses selected model, or keeps original)</button>` : ''}
         ${Object.entries(item.briefing).map(([heading,text]) => `<section><h3>${escapeHtml(heading)}</h3><div class="summary">${escapeHtml(text)}</div></section>`).join('')}
         ${item.state === 'ready' ? `<div class="actions">
@@ -920,7 +941,15 @@
       }
       document.getElementById('corpus-results-label').textContent = corpusSearching ? 'Saved articles (includes read and rated)' : 'Unread articles';
       corpusListPending = data.items.some(item => !item.quarantine_url && !['ready','failed'].includes(item.state));
-      document.getElementById('corpus-results').innerHTML = data.items.map(item => `<p><button type="button" data-corpus-id="${item.id}">${escapeHtml(item.title || item.original_url)}</button> ${escapeHtml(corpusStateText(item))} · ${escapeHtml(item.model)} ${escapeHtml(corpusReviewText(item))}</p>`).join('') || '<p>No articles found.</p>';
+      document.getElementById('corpus-results').innerHTML = data.items.length ? `
+        <table class="corpus-table" aria-labelledby="corpus-results-label">
+          <thead><tr><th scope="col">Article</th><th scope="col">Status</th><th scope="col">Model</th></tr></thead>
+          <tbody>${data.items.map(item => `<tr>
+            <td><a href="#corpus-detail" data-corpus-id="${escapeHtml(String(item.id))}">${escapeHtml(item.title || item.original_url)}</a></td>
+            <td>${escapeHtml(corpusStateText(item))}${corpusReviewText(item) ? `<p class="meta">${escapeHtml(corpusReviewText(item))}</p>` : ''}</td>
+            <td>${escapeHtml(item.model)}</td>
+          </tr>`).join('')}</tbody>
+        </table>` : '<p>No articles found.</p>';
       document.getElementById('corpus-page').textContent = ` Page ${data.page} · ${data.total} articles `;
       document.getElementById('corpus-prev').disabled = corpusPage === 1;
       document.getElementById('corpus-next').disabled = corpusPage * data.limit >= data.total;
@@ -963,7 +992,7 @@
       });
     }
     document.getElementById('corpus-view').addEventListener('click', async event => {
-      const target = event.target.closest('button'); if (!target) return;
+      const target = event.target.closest('button, a[data-corpus-id]'); if (!target) return;
       try {
         if (target.dataset.corpusDelete) {
           if (!window.confirm('Permanently delete this article, its briefing, and all related saved data?')) return;

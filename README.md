@@ -293,10 +293,10 @@ reinitialization and new connections; it does not restart running app services.
 
 ### Corpus trusted domains and quarantine
 
-`CORPUS_TRUSTED_DOMAINS` is a comma-separated list of exact hostnames. It defaults
-to `arxiv.org,www.arxiv.org,export.arxiv.org` in `Settings`. Subdomains are not
-implicitly trusted; wildcards, URLs, and suffix matches are not supported. An empty
-value trusts no domains. Keep the backend and worker configuration identical.
+`CORPUS_TRUSTED_DOMAINS` is a comma-separated list of DNS domains. It defaults
+to `arxiv.org,neurips.cc` in `Settings`; each domain and its subdomains are trusted.
+Wildcards and URLs are not supported. An empty value trusts no domains. Keep the
+backend and worker configuration identical.
 
 Unknown domains are saved in quarantine without downloading the article or calling
 Ollama. Quarantined articles remain visible and searchable, but nightly and manual
@@ -305,8 +305,8 @@ host quarantines the article; an HTTP downgrade, credentials, nonstandard port, 
 private destination fails validation. Existing queued articles are checked when
 processed. Previously completed briefings remain available.
 
-To approve a source, review the exact hostname, add it to `CORPUS_TRUSTED_DOMAINS`
-(including the existing hosts you still trust), and restart the backend and worker.
+To approve a source, review its DNS domain, add it to `CORPUS_TRUSTED_DOMAINS`
+(including the domains you still trust), and restart the backend and worker.
 Then select **Release after configuration update** in the article detail, or call
 `POST /api/corpus/{id}/release`. Release validates the original and blocked URLs
 against the configured policy and public DNS, then queues a new attempt. It does
