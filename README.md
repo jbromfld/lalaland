@@ -77,7 +77,13 @@ Before a new inference call, the worker reserves its configured timeout plus
 30 seconds within the processing window. If there is insufficient time, the
 article returns to the queue. Completed evidence chunks are checkpointed by
 article, model, prompt version, and prompt hash, so retries and later batches can
-reuse them. Condensation and final writing may repeat if interrupted.
+reuse them. Condensation and final writing may repeat if interrupted. Final writing detects
+incomplete Ollama responses and validates the complete JSON structure. A truncated,
+malformed, or invalid briefing gets one fresh, more concise writing attempt using
+the same evidence notes. Each call still reserves time within the processing
+window; incomplete responses are never saved as completed briefings. Persistent
+failures remain visible for retry. `CORPUS_FINAL_NUM_PREDICT` controls the output
+token budget for final writing; restart the worker after changing it.
 
 Processing states are `queued`, `extracting`, `summarizing`, `ready`, and `failed`.
 The dashboard shows the current chunk or batch, completed steps, elapsed time,
@@ -148,7 +154,8 @@ model selection.
 | `CORPUS_SCHEDULE_HOUR` / `CORPUS_END_HOUR` | LA-2 overnight window | `3` / `5` |
 | `CORPUS_SCHEDULE_TIMEZONE` | LA-2 schedule timezone | `America/Detroit` |
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |
-| `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout | `900` |
+| `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout per call | `900` |
+| `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
 | `TEMPORAL_ADDRESS` | Temporal endpoint | `host.docker.internal:30733` |
 | `TEMPORAL_NAMESPACE` | Temporal namespace | `lalaland` |
 
@@ -233,6 +240,67 @@ migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/005_corpus_quarantine.s
 They create the new corpus tables and index while preserving existing articles
 and RSS records. There is no need to rerun the initial schema sync script for
 these corpus additions.
+
+## Shared knowledge retrieval with lassy
+
+Lalaland publishes RSS summaries, completed corpus article text, and corpus
+briefings to the sibling `lassy` retrieval service. Lassy owns chunking, embedding,
+hybrid keyword/cosine retrieval, fusion and reranking. Lalaland remains the source
+of truth and owns summary generation. The retrieval index can be rebuilt.
+
+1. Apply `lassy/db/002_documents.sql` to an existing lassy database, then rebuild/restart
+   lassy. New lassy databases use its complete `db/init.sql`.
+2. Set `KNOWLEDGE_SERVICE_URL` to lassy's **base URL**, on both backend and worker.
+   With the default lassy Compose port, use `http://host.docker.internal:8082`
+   inside Docker, or `http://127.0.0.1:8082` for native processes. Set
+   `KNOWLEDGE_TIMEOUT_SECONDS` if the default 120 seconds is insufficient.
+3. Restart/rebuild lalaland backend and worker. Startup applies the additive outbox
+   schema and registers `knowledge-sync-schedule` when the URL is configured.
+4. Backfill existing data using the same database/configuration as those services:
+
+```bash
+python -m backend.services.knowledge backfill
+python -m backend.services.knowledge status
+# Optional immediate delivery of one batch (default limit 25):
+python -m backend.services.knowledge sync --limit 25
+# Docker equivalents:
+docker compose exec backend python -m backend.services.knowledge backfill
+docker compose exec backend python -m backend.services.knowledge status
+```
+
+`knowledge-sync-schedule` runs every minute and delivers up to five source records
+per run; overlapping runs are skipped. Each corpus record can publish both its
+original text and briefing. Database triggers queue inserts, content changes and
+deletes atomically with the source transaction. Review/rating changes do not
+reindex. Delivery retries failed records, and versioned acknowledgements preserve
+concurrent edits/deletes. `knowledge_outbox` exposes pending events, attempt counts,
+and error types. A delivery outage does not block article processing. An unset
+URL disables delivery; queued events remain for later synchronization.
+
+Collections are `lalaland-rss` and `lalaland-corpus`. Corpus article IDs are their
+numeric source ID as a string; briefing IDs append `-briefing`. Both have the
+original `source_id` in metadata. RSS indexes only the saved summary. Corpus
+indexes extracted text with page/section references, plus the generated briefing
+as a separate `content_type`. Only completed (`ready`) corpus records are indexed.
+Corpus publication dates remain unknown pending reliable date normalization;
+RSS uses its saved `article_published_at`.
+
+```bash
+curl http://127.0.0.1:8000/api/knowledge/query \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"vision language models","top_k":10,"filters":{"content_type":"corpus_article"}}'
+```
+
+`POST /api/knowledge/query` forwards to lassy and defaults the collection filter to
+both lalaland collections. Explicit collection filters can search other shared
+knowledge. Scores, citations and document identifiers pass through unchanged.
+Existing Inbox/Corpus navigation and record search remain database views; the new
+knowledge endpoint is the hybrid retrieval interface. Clients can also call lassy
+directly or use `local-mcp-server`.
+
+This integration provides retrieved evidence. Cross-article summary generation,
+publication-date range filters, and exhaustive “all matching articles” enumeration
+are subsequent features; top-k chunk retrieval does not establish completeness.
 
 ## API reference
 

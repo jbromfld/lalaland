@@ -84,3 +84,26 @@ async def ensure_corpus_schedule(client: Client, settings: Settings) -> None:
     else:
         # Updating only this schedule leaves the daily briefing unchanged.
         await handle.update(lambda _: ScheduleUpdate(schedule=schedule))
+
+
+async def ensure_knowledge_schedule(client: Client, settings: Settings) -> None:
+    from datetime import timedelta
+    from temporalio.client import ScheduleIntervalSpec
+    from .knowledge import KnowledgeSyncWorkflow
+    if not settings.knowledge_service_url:
+        # An existing schedule safely no-ops because the activity checks configuration.
+        return
+    handle = client.get_schedule_handle('knowledge-sync-schedule')
+    schedule = Schedule(
+        action=ScheduleActionStartWorkflow(KnowledgeSyncWorkflow.run,
+            id='knowledge-sync-workflow', task_queue=TASK_QUEUE),
+        spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=1))]),
+        policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP))
+    try:
+        await handle.describe()
+    except RPCError as exc:
+        if exc.status != RPCStatusCode.NOT_FOUND:
+            raise
+        await client.create_schedule('knowledge-sync-schedule', schedule)
+    else:
+        await handle.update(lambda _: ScheduleUpdate(schedule=schedule))

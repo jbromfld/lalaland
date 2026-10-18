@@ -24,7 +24,7 @@ from backend.db import (
     update_source,
 )
 from backend.telemetry import setup_telemetry
-from backend.temporal.client import DAILY_BRIEFING_WORKFLOW_ID, TASK_QUEUE, connect, ensure_daily_briefing_schedule, ensure_corpus_schedule
+from backend.temporal.client import DAILY_BRIEFING_WORKFLOW_ID, TASK_QUEUE, connect, ensure_daily_briefing_schedule, ensure_corpus_schedule, ensure_knowledge_schedule
 from backend.temporal.workflows import DailyBriefingWorkflow
 
 
@@ -38,12 +38,15 @@ async def lifespan(app: FastAPI):
     app.state.temporal_client = await connect()
     await ensure_daily_briefing_schedule(app.state.temporal_client, settings)
     await ensure_corpus_schedule(app.state.temporal_client, settings)
+    await ensure_knowledge_schedule(app.state.temporal_client, settings)
     yield
 
 
 app = FastAPI(title=settings.app_title, lifespan=lifespan)
 from backend.corpus_api import router as corpus_router
 app.include_router(corpus_router)
+from backend.knowledge_api import router as knowledge_router
+app.include_router(knowledge_router)
 app.mount("/static", StaticFiles(directory=str(settings.frontend_dir)), name="static")
 
 

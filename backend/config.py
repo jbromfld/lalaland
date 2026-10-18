@@ -22,9 +22,12 @@ class Settings:
     corpus_model: str = "granite4.2:3b"
     corpus_ollama_timeout_seconds: int = 300
     corpus_final_timeout_seconds: int = 900
+    corpus_final_num_predict: int = 6144
     corpus_schedule_hour: int = 3
     corpus_end_hour: int = 5
     corpus_schedule_timezone: str = "America/Detroit"
+    knowledge_service_url: str = ""
+    knowledge_timeout_seconds: int = 120
     temporal_address: str = "host.docker.internal:30733"
     temporal_namespace: str = "lalaland"
 
@@ -49,6 +52,8 @@ def load_settings() -> Settings:
     defaults = Settings()
     return replace(
         defaults,
+        knowledge_service_url=os.getenv("KNOWLEDGE_SERVICE_URL", defaults.knowledge_service_url).rstrip("/"),
+        knowledge_timeout_seconds=int(os.getenv("KNOWLEDGE_TIMEOUT_SECONDS", str(defaults.knowledge_timeout_seconds))),
         database_url=os.getenv("DATABASE_URL", defaults.database_url),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", defaults.ollama_base_url),
         ollama_model=os.getenv("OLLAMA_MODEL", defaults.ollama_model),
@@ -69,6 +74,9 @@ def load_settings() -> Settings:
         )),
         corpus_final_timeout_seconds=int(os.getenv(
             "CORPUS_FINAL_TIMEOUT_SECONDS", str(defaults.corpus_final_timeout_seconds)
+        )),
+        corpus_final_num_predict=int(os.getenv(
+            "CORPUS_FINAL_NUM_PREDICT", str(defaults.corpus_final_num_predict)
         )),
         corpus_schedule_hour=int(os.getenv(
             "CORPUS_SCHEDULE_HOUR", str(defaults.corpus_schedule_hour)
