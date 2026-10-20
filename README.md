@@ -171,7 +171,7 @@ inference timeouts below the worker's 1,200-second heartbeat interval.
 
 ## Run locally
 
-Prerequisites are Python 3.11+, Postgres, Ollama with the configured models
+Prerequisites are Python 3.13.16, Postgres, Ollama with the configured models
 installed, and a reachable Temporal server with the `lalaland` namespace.
 Download any missing model with `ollama pull MODEL_NAME`.
 
@@ -181,7 +181,8 @@ your installation. For a host process connecting to the shared local Temporal
 server, use `127.0.0.1` instead of the Docker hostname:
 
 ```bash
-python3 -m pip install -e ".[dev]"
+uv sync --locked --extra dev
+source .venv/bin/activate
 export TEMPORAL_ADDRESS=127.0.0.1:30733
 uvicorn backend.main:app --reload
 ```
@@ -217,6 +218,21 @@ Use `docker-compose` if only the legacy CLI is installed. This starts `backend`,
 using the configured port. Nginx proxies `/api` and `/health` to the backend.
 Host services can be reached through `host.docker.internal` from containers.
 
+### Workflow service recovery
+
+The worker uses `restart: unless-stopped` so a fatal Temporal polling error does
+not leave processing offline indefinitely. Check `docker-compose ps -a` and
+`docker-compose logs --tail=100 worker` if both agents stop processing.
+
+With local Kubernetes on Colima, repeated Temporal `Unavailable` / “Not enough
+hosts” errors can indicate a failing history pod. Check `kubectl get pods -n
+temporal` and `kubectl describe pod -n temporal POD_NAME`. `OOMKilled` means the
+service ran out of memory. This combined local deployment exhausted a 2 GiB
+Colima VM; increasing it to 4 GiB restored capacity. Resizing requires a VM restart
+and briefly interrupts all containers. Keep the existing Temporal database and
+history shard count; do not reset workflow data to recover service availability.
+After Temporal recovers, run `docker-compose up -d` to restore application services.
+
 ## Persistence and migrations
 
 | Agent | Table | Stored data |
@@ -241,7 +257,7 @@ They create the new corpus tables and index while preserving existing articles
 and RSS records. There is no need to rerun the initial schema sync script for
 these corpus additions.
 
-## Shared knowledge retrieval with lassy
+## Shared knowledge retrieval with Lassy
 
 Lalaland publishes RSS summaries, completed corpus article text, and corpus
 briefings to the sibling `lassy` retrieval service. Lassy owns chunking, embedding,
@@ -394,3 +410,11 @@ and model calls; a fetch or model request already in flight may finish, but cann
 restore the deleted article. Existing Temporal execution history is retained by
 Temporal under its own retention policy. You can submit the URL again later as a
 new article.
+
+## Standardized environment
+
+Use CPython **3.13.16** and `uv sync --locked` for this repository. The dependency
+source of truth is `pyproject.toml` plus committed `uv.lock`. Use
+`uv sync --locked --extra dev` when development extras are needed (where defined).
+Shared Ansible provisioning and runtime version checks are documented in [local-agent-environment](../local-agent-environment/README.md).
+Its `.tools/bin/uv` provides the pinned uv version independently of PATH.
