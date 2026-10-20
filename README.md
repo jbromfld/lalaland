@@ -416,5 +416,5 @@ new article.
 Use CPython **3.13.16** and `uv sync --locked` for this repository. The dependency
 source of truth is `pyproject.toml` plus committed `uv.lock`. Use
 `uv sync --locked --extra dev` when development extras are needed (where defined).
-Shared Ansible provisioning and runtime version checks are documented in [local-agent-environment](../local-agent-environment/README.md).
+Shared Ansible provisioning and runtime version checks are documented in `local-agent-environment`.
 Its `.tools/bin/uv` provides the pinned uv version independently of PATH.
