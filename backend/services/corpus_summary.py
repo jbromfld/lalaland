@@ -151,7 +151,7 @@ def summarize(settings, article, heartbeat=lambda:None, progress=None, generator
     logger.info('Corpus article %s: synthesizing engineering briefing', article.get('id', '?'))
     report('writing', 1, 1, 0)
     prompt = (
-        'Write an 800-1,200 word engineering briefing for a DevOps/AIops engineer without advanced ML or math expertise. ' \
+        'Write an 800-1,200 word engineering briefing for a DevOps/AIops engineer. ' \
         'The word target is for the entire briefing across all seven sections, not for each section. '
         'Use familiar systems analogies and define terms. '
         'Cover the problem, mechanism, experimental evidence and conditions, limitations, relevant deployment, '
