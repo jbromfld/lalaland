@@ -38,7 +38,7 @@ Open **Corpus** and submit a URL such as
 not immediately start inference. The worker extracts the article, creates evidence
 notes from bounded chunks, condenses those notes, and writes a structured briefing.
 
-Briefings are written for an engineer without advanced ML or mathematics training:
+Briefings are written for a DevOps/AIOps engineer:
 
 - A plain-English takeaway, the problem being solved, and how the approach works.
 - Experimental evidence, conditions, and limitations, with page/section references.

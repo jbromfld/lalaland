@@ -97,3 +97,5 @@ see [validation prerequisites](docs/development.md) before running them.
 - [Shared retrieval with Lassy](docs/knowledge.md): setup, backfill, outbox delivery, and knowledge queries.
 - [API reference](docs/api.md): RSS and corpus endpoints.
 - [Development and validation](docs/development.md): dependency management, tests, and opt-in live inference.
+
+OCI release publishing and GitOps deployment are documented in [image releases](docs/releases.md).
