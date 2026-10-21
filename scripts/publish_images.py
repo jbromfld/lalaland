@@ -36,6 +36,7 @@ def main():
     
     # Archive the exact commit: uncommitted files and local secrets never enter the build.
     archive=subprocess.check_output(['git','-C',str(ROOT),'archive',commit])
+    
     with tempfile.TemporaryDirectory(prefix=APPLICATION+'-release-') as temporary:
         directory=Path(temporary)
         with tarfile.open(fileobj=io.BytesIO(archive)) as source:
@@ -44,11 +45,14 @@ def main():
         for component,dockerfile in IMAGES.items():
             image=f'{args.registry.rstrip("/")}/{APPLICATION}/{component}:{commit}'
             metadata=directory/f'.metadata-{component}.json'
+            
             subprocess.run(['docker','--context',args.context,'buildx','build','--platform',args.platform,
                 '--label',f'org.opencontainers.image.revision={commit}',
                 '--label',f'org.opencontainers.image.source={release["source"]["repository"]}',
                 '--push','--metadata-file',str(metadata),'-t',image,'-f',str(directory/dockerfile),str(directory)],check=True)
+            
             digest=json.loads(metadata.read_text())['containerimage.digest']
+            
             if not re.fullmatch(r'sha256:[a-f0-9]{64}',digest):
                 raise RuntimeError('Builder did not produce a valid image digest')
             release['images'][component]=image.rsplit(':',1)[0]+'@'+digest
