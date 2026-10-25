@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import os
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 
 @dataclass(frozen=True)
 class Settings:
+    inference_provider: str = "ollama"
+    vllm_base_url: str = "http://127.0.0.1:8001/v1"
+    vllm_model: str = "local-model"
+    vllm_api_key: str = field(default="", repr=False)
     database_url: str = "postgresql://localhost:5432/lalaland"
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "granite4.2:3b"
@@ -31,6 +35,14 @@ class Settings:
     temporal_address: str = "host.docker.internal:30733"
     temporal_namespace: str = "lalaland"
 
+    def __post_init__(self):
+        if self.inference_provider not in ("ollama", "vllm"):
+            raise ValueError("INFERENCE_PROVIDER must be ollama or vllm")
+
+    @property
+    def rss_model(self):
+        return self.vllm_model if self.inference_provider == "vllm" else self.ollama_model
+
 
 def trusted_domains(value: str) -> tuple[str, ...]:
     domains = []
@@ -50,8 +62,14 @@ def trusted_domains(value: str) -> tuple[str, ...]:
 def load_settings() -> Settings:
     """Apply environment overrides to the defaults declared on Settings."""
     defaults = Settings()
+    provider = os.getenv("INFERENCE_PROVIDER", defaults.inference_provider)
+    vllm_model = os.getenv("VLLM_MODEL", defaults.vllm_model)
     return replace(
         defaults,
+        inference_provider=provider,
+        vllm_base_url=os.getenv("VLLM_BASE_URL", defaults.vllm_base_url).rstrip("/"),
+        vllm_model=vllm_model,
+        vllm_api_key=os.getenv("VLLM_API_KEY", defaults.vllm_api_key),
         knowledge_service_url=os.getenv("KNOWLEDGE_SERVICE_URL", defaults.knowledge_service_url).rstrip("/"),
         knowledge_timeout_seconds=int(os.getenv("KNOWLEDGE_TIMEOUT_SECONDS", str(defaults.knowledge_timeout_seconds))),
         database_url=os.getenv("DATABASE_URL", defaults.database_url),
@@ -68,7 +86,7 @@ def load_settings() -> Settings:
         corpus_trusted_domains=trusted_domains(os.getenv(
             "CORPUS_TRUSTED_DOMAINS", ",".join(defaults.corpus_trusted_domains)
         )),
-        corpus_model=os.getenv("CORPUS_MODEL", defaults.corpus_model),
+        corpus_model=os.getenv("CORPUS_MODEL", vllm_model if provider == "vllm" else defaults.corpus_model),
         corpus_ollama_timeout_seconds=int(os.getenv(
             "CORPUS_OLLAMA_TIMEOUT_SECONDS", str(defaults.corpus_ollama_timeout_seconds)
         )),

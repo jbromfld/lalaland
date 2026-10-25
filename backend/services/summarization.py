@@ -9,6 +9,7 @@ from opentelemetry import trace
 
 from backend.config import Settings
 from backend.services.ollama_queue import inference_slot
+from backend.services import vllm
 
 
 def _remove_reasoning(text: str) -> str:
@@ -46,7 +47,19 @@ def _generate_summary(
     return summary
 
 
+@traceable(name="vllm.summarize", run_type="llm",
+           process_inputs=lambda inputs: {'prompt': inputs['prompt'], 'model': inputs['settings'].rss_model})
+def _generate_vllm_summary(prompt, settings):
+    summary = _remove_reasoning(vllm.generate(
+        settings, settings.rss_model, prompt, timeout=settings.ollama_timeout_seconds, max_tokens=768,
+    ))
+    if not summary:
+        raise ValueError('vLLM returned an empty summary')
+    return summary
+
+
 class OllamaSummarizer:
+    """RSS summarizer; the historical class name is retained for callers."""
     def __init__(self, settings: Settings):
         self.settings = settings
         self.tracer = trace.get_tracer(__name__)
@@ -76,34 +89,33 @@ class OllamaSummarizer:
         ).strip()
 
         with self.tracer.start_as_current_span("granite.summarize") as span:
-            span.set_attribute("gen_ai.system", "ollama")
-            span.set_attribute("gen_ai.request.model", self.settings.ollama_model)
+            span.set_attribute("gen_ai.system", self.settings.inference_provider)
+            span.set_attribute("gen_ai.request.model", self.settings.rss_model)
             span.set_attribute("article.source_name", source_name)
             span.set_attribute("article.url", article_url)
             span.set_attribute("gen_ai.request.prompt_chars", len(prompt))
 
             with inference_slot(self.settings):
-                summary = _generate_summary(
-                    prompt,
-                    ollama_base_url=self.settings.ollama_base_url,
-                    ollama_model=self.settings.ollama_model,
-                    ollama_timeout_seconds=self.settings.ollama_timeout_seconds,
-                    langsmith_extra={
-                        "metadata": {
-                            "article.source_name": source_name,
-                            "article.url": article_url,
-                            "gen_ai.request.prompt_chars": len(prompt),
-                        },
-                        "tags": ["ollama", "granite"],
-                    },
-                )
+                summary = self._generate(prompt, source_name, article_url)
 
             span.set_attribute("gen_ai.response.chars", len(summary))
-            span.add_event(
-                "granite.response",
-                {
-                    "summary_preview": summary[:240],
-                },
-            )
-
+            span.add_event("granite.response", {"summary_preview": summary[:240]})
             return summary
+
+    def _generate(self, prompt, source_name, article_url):
+        if self.settings.inference_provider == 'vllm':
+            return _generate_vllm_summary(prompt, self.settings)
+        return _generate_summary(
+            prompt,
+            ollama_base_url=self.settings.ollama_base_url,
+            ollama_model=self.settings.ollama_model,
+            ollama_timeout_seconds=self.settings.ollama_timeout_seconds,
+            langsmith_extra={
+                "metadata": {
+                    "article.source_name": source_name,
+                    "article.url": article_url,
+                    "gen_ai.request.prompt_chars": len(prompt),
+                },
+                "tags": ["ollama", "granite"],
+            },
+        )

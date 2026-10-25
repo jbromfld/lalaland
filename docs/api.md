@@ -25,7 +25,7 @@ Run commands from the repository root unless stated otherwise.
 
 | Method and path | Action |
 |---|---|
-| `GET /api/ollama/models` | List installed models, corpus default, and discovery errors |
+| `GET /api/inference/models` | List available models from the selected provider, corpus default, and discovery errors (`/api/ollama/models` remains an alias) |
 | `POST /api/corpus` | Queue `{"url": "https://arxiv.org/pdf/2607.01077"}`; optional `model` overrides the default |
 | `GET /api/corpus` | Paginated unread list/search using `keyword`, `page`, and `limit`; `include_reviewed=true` includes reviewed articles |
 | `DELETE /api/corpus/{id}` | Permanently delete an article and its extracted text, briefing, progress, cached evidence, review, and quarantine records |

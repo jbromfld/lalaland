@@ -357,7 +357,7 @@
           <div class="view-header"><div><h2>Engineering research corpus</h2><p>Queue HTTPS papers or articles for an overnight engineering briefing.</p></div></div>
           <form id="corpus-form">
             <label>Article URL <input id="corpus-url" type="url" required maxlength="2048" placeholder="https://arxiv.org/pdf/2607.01077" /></label>
-            <label>Ollama model <select id="corpus-model"><option value="">Configured default</option></select></label>
+            <label>Model <select id="corpus-model"><option value="">Configured default</option></select></label>
             <button type="submit" class="primary">Queue article</button>
           </form>
           <button id="corpus-run-now" type="button">Run queued articles now</button>
@@ -878,7 +878,7 @@
     let corpusPage = 1, corpusSelected = null, corpusBusy = false, corpusDetailPending = false, corpusListPending = false, corpusSearching = false;
     async function loadCorpusModels() {
       try {
-        const data = await api('/api/ollama/models');
+        const data = await api('/api/inference/models');
         corpusModel.innerHTML = `<option value="">Configured default (${escapeHtml(data.default_model)})</option>` +
           data.models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
         document.getElementById('corpus-model-status').textContent = data.error || data.warning || '';

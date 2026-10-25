@@ -5,9 +5,12 @@ Two local research agents with a shared browser dashboard:
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
 - **LA-2 — Research corpus:** queues paper/article URLs and produces engineering deep dives from extracted full text.
 
-Both use Ollama for inference, Temporal for durable processing, and PostgreSQL for
+Both default to Ollama for inference, Temporal for durable processing, and PostgreSQL for
 storage. Optional [Lassy integration](docs/knowledge.md) indexes saved content for
 shared hybrid retrieval.
+
+For experiments with vLLM on an M1 Mac, see [vLLM setup](docs/vllm.md).
+Set `INFERENCE_PROVIDER=vllm` to switch both agents; Ollama remains the default.
 
 ## Quickstart with Docker
 

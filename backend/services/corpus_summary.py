@@ -3,15 +3,13 @@ import logging
 import requests
 from langsmith import traceable
 from backend.services.summarization import _remove_reasoning
+from backend.services import vllm
+from backend.services.vllm import IncompleteGenerationError
 
 logger = logging.getLogger(__name__)
 
 HEADINGS = ['Takeaway', 'How it works', 'Evidence and limitations', 'Engineering relevance',
             'Adoption and tradeoffs', 'Practical experiment', 'Glossary and references']
-
-
-class IncompleteGenerationError(ValueError):
-    """Ollama stopped before completing its response."""
 
 
 class InvalidBriefingError(ValueError):
@@ -23,11 +21,13 @@ def parse_briefing(raw):
     if not isinstance(result, dict) or set(result) != set(HEADINGS) or any(
         not isinstance(v, str) or not v.strip() or '\x00' in v for v in result.values()
     ):
-        raise InvalidBriefingError('Ollama returned an invalid structured briefing')
+        raise InvalidBriefingError('Model returned an invalid structured briefing')
     return result
 
 
 def installed_models(settings):
+    if settings.inference_provider == 'vllm':
+        return vllm.installed_models(settings)
     response = requests.get(f'{settings.ollama_base_url.rstrip("/")}/api/tags', timeout=10)
     response.raise_for_status()
     payload = response.json()
@@ -38,10 +38,21 @@ def installed_models(settings):
 
 
 @traceable(
-    name='corpus.generate', run_type='llm', tags=['ollama', 'corpus'],
+    name='corpus.generate', run_type='llm', tags=['corpus'],
     process_inputs=lambda inputs: {key: inputs[key] for key in ('model', 'prompt', 'structured')},
 )
 def generate(settings, model, prompt, structured=False):
+    if settings.inference_provider == 'vllm':
+        schema = {'type':'object', 'properties':{k:{'type':'string'} for k in HEADINGS},
+                  'required':HEADINGS, 'additionalProperties':False} if structured else None
+        result = _remove_reasoning(vllm.generate(
+            settings, model, prompt, schema=schema,
+            timeout=settings.corpus_final_timeout_seconds if structured else settings.corpus_ollama_timeout_seconds,
+            max_tokens=settings.corpus_final_num_predict if structured else 768,
+        ))
+        if not result:
+            raise ValueError('vLLM returned an empty response')
+        return result
     payload = {'model':model, 'prompt':prompt, 'stream':False, 'think':False,
                'options':{'temperature':0.2, 'num_ctx':16384, 'num_predict':settings.corpus_final_num_predict if structured else 768}}
     if structured:
@@ -98,7 +109,7 @@ def chunks(sections, size=12000):
 
 
 @traceable(
-    name='corpus.summarize', tags=['ollama', 'corpus'],
+    name='corpus.summarize', tags=['corpus'],
     process_inputs=lambda inputs: {'article': {
         key: inputs['article'][key]
         for key in ('id', 'title', 'original_url', 'resolved_url', 'model', 'attempt')

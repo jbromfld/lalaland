@@ -33,28 +33,29 @@ def resolve_model(model):
     except (requests.RequestException, ValueError, KeyError) as exc:
         if model is None:
             return settings.corpus_model
-        raise HTTPException(503, 'Could not validate model: Ollama model discovery unavailable') from exc
+        raise HTTPException(503, f'Could not validate model: {settings.inference_provider} model discovery unavailable') from exc
     if model is None:
         if settings.corpus_model not in models:
             raise HTTPException(
                 503,
-                f'Configured default model {settings.corpus_model!r} is not installed on the configured Ollama server.',
+                f'Configured default model {settings.corpus_model!r} is not available on the configured {settings.inference_provider} server.',
             )
         return settings.corpus_model
     if model not in models:
-        raise HTTPException(422, 'Selected model is not installed on the configured Ollama server')
+        raise HTTPException(422, f'Selected model is not available on the configured {settings.inference_provider} server')
     return model
 
 
 @router.get('/api/ollama/models')
+@router.get('/api/inference/models')
 def models():
     settings = load_settings()
     try:
         installed = installed_models(settings)
-        warning = None if settings.corpus_model in installed else 'Configured default model is not installed. Select an installed text-generation model or install the default in Ollama.'
+        warning = None if settings.corpus_model in installed else 'Configured default model is not available. Select an available text-generation model or configure the server to serve the default.'
         return {'default_model':settings.corpus_model, 'models':installed, 'error':None, 'warning':warning}
     except (requests.RequestException, ValueError, KeyError):
-        return {'default_model':settings.corpus_model, 'models':[], 'error':'Ollama model discovery unavailable; you can still use the configured default.'}
+        return {'default_model':settings.corpus_model, 'models':[], 'error':f'{settings.inference_provider} model discovery unavailable; you can still use the configured default.'}
 
 
 @router.post('/api/corpus')
