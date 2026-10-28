@@ -66,7 +66,8 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
 3. Read or rate results; use search to find reviewed material later.
 
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
-domains enter quarantine until you update configuration and release the article.
+domains enter quarantine. Select **Review sources to release**, then **Trust sources
+and release** to approve the displayed hostnames and queue the article.
 PDF processing uses extracted text; it does not interpret figures or scanned pages.
 See [agent behavior and source policies](docs/agents.md) for details.
 

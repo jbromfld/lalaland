@@ -85,7 +85,7 @@ def test_discovery_failure_preserves_default(monkeypatch):
 
 
 def test_unsupported_content(monkeypatch):
-    monkeypatch.setattr(extraction, 'download', lambda url:(b'abc','application/octet-stream',url))
+    monkeypatch.setattr(extraction, 'download', lambda url, *args, **kwargs:(b'abc','application/octet-stream',url))
     with pytest.raises(ValueError,match='Unsupported'): extraction.extract('https://example.org/paper')
 
 
@@ -107,7 +107,7 @@ def test_store_search_and_retry(settings):
 def test_extraction_limits(monkeypatch):
     html = ('<html><head><title>Research</title></head><body><article><h1>Research</h1>' +
             ''.join(f'<p>Experiment {i} describes a deployment system and its evaluation under production workloads with {i+10} workers.</p>' for i in range(20)) + '</p></article></body></html>').encode()
-    monkeypatch.setattr(extraction,'download',lambda url:(html,'text/html',url))
+    monkeypatch.setattr(extraction,'download',lambda url, *args, **kwargs:(html,'text/html',url))
     result = extraction.extract('https://example.org/paper')
     assert result['sections'] and result['title'] == 'Research'
     monkeypatch.setattr(extraction,'MAX_CHARS',100)
@@ -176,7 +176,7 @@ def test_pdf_nul_characters_are_removed(monkeypatch):
     reader.pages=[Mock(extract_text=lambda:('Engineering results\x00 '*50))]
     reader.metadata={'/Title':'Research\x00 title'}
     monkeypatch.setattr(pypdf,'PdfReader',lambda stream:reader)
-    monkeypatch.setattr(extraction,'download',lambda url:(b'%PDF-fake','application/pdf',url))
+    monkeypatch.setattr(extraction,'download',lambda url, *args, **kwargs:(b'%PDF-fake','application/pdf',url))
     result=extraction.extract('https://example.org/paper.pdf')
     assert '\x00' not in result['article_text']
     assert result['title'] == 'Research title'
@@ -238,7 +238,7 @@ def test_additive_migration_preserves_existing_data(settings):
     from pathlib import Path
     from backend.db import get_connection, create_source
     source=create_source(settings,name='Existing feed',tags=['ops'],feed_url='https://example.org/rss',source_weight=1,enabled=True)
-    migration='\n'.join(Path(f'sql/ddl/{name}').read_text() for name in ['001_corpus.sql','002_corpus_progress.sql','003_corpus_generations.sql','004_corpus_reviews.sql','005_corpus_quarantine.sql'])
+    migration='\n'.join(Path(f'sql/ddl/{name}').read_text() for name in ['001_corpus.sql','002_corpus_progress.sql','003_corpus_generations.sql','004_corpus_reviews.sql','005_corpus_quarantine.sql','006_corpus_sources.sql'])
     with get_connection(settings) as conn:
         conn.execute("""INSERT INTO inbox_entries(source_id,source_name,title,canonical_url,article_url,summary)
             VALUES (%s,'Existing feed','Existing article','https://example.org/old','https://example.org/old','Existing summary')""",(source['id'],))

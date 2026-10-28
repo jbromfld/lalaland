@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS corpus_quarantine (
  url TEXT NOT NULL, reason TEXT NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS corpus_sources (
+ hostname TEXT PRIMARY KEY,
+ approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 
@@ -168,10 +172,23 @@ def quarantine(settings, article_id, attempt, url, reason):
                 (article_id,url,reason))
 
 
-def release(settings, article_id):
+def approved_hosts(settings):
+    """UI approvals trust exact hosts; configured domains also trust subdomains."""
     with get_connection(settings) as conn:
-        row = conn.execute("DELETE FROM corpus_quarantine WHERE article_id=%s RETURNING article_id", (article_id,)).fetchone()
+        return tuple(row['hostname'] for row in conn.execute('SELECT hostname FROM corpus_sources').fetchall())
+
+
+def release(settings, article_id, *, approved_hosts=(), quarantine_url=None):
+    with get_connection(settings) as conn:
+        # Match quarantine's lock order, and serialize concurrent release/deletion.
+        if not conn.execute('SELECT id FROM corpus_articles WHERE id=%s FOR UPDATE', (article_id,)).fetchone():
+            return None
+        row = conn.execute('''DELETE FROM corpus_quarantine WHERE article_id=%s
+            AND (%s::text IS NULL OR url=%s) RETURNING article_id''',
+            (article_id, quarantine_url, quarantine_url)).fetchone()
         if row:
+            for hostname in approved_hosts:
+                conn.execute('INSERT INTO corpus_sources(hostname) VALUES (%s) ON CONFLICT DO NOTHING', (hostname,))
             return conn.execute("""UPDATE corpus_articles SET state='queued',error=NULL,
                 attempt=attempt+1,updated_at=NOW() WHERE id=%s RETURNING *""", (article_id,)).fetchone()
 

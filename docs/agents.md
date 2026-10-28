@@ -109,8 +109,8 @@ Authenticated pages and OCR are not supported.
 
 `CORPUS_TRUSTED_DOMAINS` is a comma-separated list of DNS domains. It defaults
 to `arxiv.org,neurips.cc` in `Settings`; each domain and its subdomains are trusted.
-Wildcards and URLs are not supported. An empty value trusts no domains. Keep the
-backend and worker configuration identical.
+Wildcards and URLs are not supported. An empty value trusts no configured domains;
+saved UI approvals still apply. Keep the backend and worker configuration identical.
 
 Unknown domains are saved in quarantine without downloading the article or calling
 Ollama. Quarantined articles remain visible and searchable, but nightly and manual
@@ -119,14 +119,27 @@ host quarantines the article; an HTTP downgrade, credentials, nonstandard port, 
 private destination fails validation. Existing queued articles are checked when
 processed. Previously completed briefings remain available.
 
-To approve a source, review its DNS domain, add it to `CORPUS_TRUSTED_DOMAINS`
-(including the domains you still trust), and restart the backend and worker.
-Then select **Release after configuration update** in the article detail, or call
-`POST /api/corpus/{id}/release`. Release validates the original and blocked URLs
-against the configured policy and public DNS, then queues a new attempt. It does
-not start a batch or grant a per-article exception. Further redirects are checked
-again during fetching. The additive `corpus_quarantine` table records the blocked
-URL, reason, and timestamp; processing state remains separate.
+To approve a source, select **Review sources to release** in the Corpus list.
+The article detail displays the original and blocked hostnames. **Trust sources
+and release** saves these exact hostnames in `corpus_sources`, clears this article's
+quarantine, and queues a new attempt in one transaction. Approvals apply to future
+articles on these hosts, but do not include their subdomains. Both backend and
+worker read approvals from the shared database without a restart. Existing
+quarantined articles still need individual release. Deleting an article preserves
+source approvals.
+
+The equivalent API is `POST /api/corpus/{id}/release` with
+`{"approve_sources":true}`. With an omitted or false flag, release requires the
+original and blocked hosts to be trusted already, through configuration or saved
+approval. You can also add domains to `CORPUS_TRUSTED_DOMAINS` and restart backend
+and worker as before.
+
+Release validates both URLs as public HTTPS destinations before saving any
+approval. It does not start a batch; use **Run queued articles now** or wait for
+the nightly window. Every redirect is checked again during fetching, so new
+unapproved hosts cause quarantine again. `corpus_quarantine` retains blocked URL,
+reason, and timestamp independently of processing state. The additive
+`006_corpus_sources.sql` migration preserves all existing quarantine records.
 
 This policy applies to LA-2 article downloads. Local Ollama/Temporal addresses and
 LA-1 RSS fetching retain their existing configuration.

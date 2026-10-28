@@ -102,6 +102,7 @@ After Temporal recovers, run `docker-compose up -d` to restore application servi
 | LA-2 | `corpus_generations` | Completed evidence chunks for resumable processing |
 | LA-2 | `corpus_reviews` | Read timestamps and 1–5 ratings |
 | LA-2 | `corpus_quarantine` | Blocked URL, reason, and quarantine timestamp |
+| LA-2 | `corpus_sources` | Exact hostnames approved in the Corpus UI and approval timestamps; shared by backend and worker |
 
 LA-1 feed text is transient. LA-2 retains extracted text and page/section references
 for full-text search, retries, and reproducibility; downloaded PDF files are
@@ -110,7 +111,7 @@ titles, article text, and briefings. Canonical URLs provide deduplication, with
 tracking parameters removed before comparison.
 
 Schema initialization is idempotent. For an existing database, LA-2's additive SQL
-migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/005_corpus_quarantine.sql`.
+migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/006_corpus_sources.sql`.
 They create the new corpus tables and index while preserving existing articles
 and RSS records. There is no need to rerun the initial schema sync script for
 these corpus additions.
