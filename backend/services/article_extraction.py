@@ -3,6 +3,7 @@ import ipaddress
 import re
 import socket
 import time
+from datetime import date
 from io import BytesIO
 from urllib.parse import urlsplit, urljoin, urlunsplit
 import requests
@@ -12,6 +13,25 @@ from backend.services.discovery import canonicalize_url
 MAX_BYTES = 20 * 1024 * 1024
 MAX_CHARS = 500_000
 ARXIV = re.compile(r'^/(?:abs|pdf)/((?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?/\d{7})(?:v\d+)?)(?:\.pdf)?/?$')
+ARXIV_DATE = re.compile(r'arXiv:\s*[^\s]+v\d+\s+\[[^]]+\]\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})')
+MONTHS = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec')
+
+
+def publication_date(metadata, text='', *, arxiv=False):
+    """Use source publication metadata or the arXiv version stamp, never PDF creation time."""
+    value = metadata.get('date')
+    if isinstance(value, str):
+        try:
+            return date.fromisoformat(value[:10])
+        except ValueError:
+            pass
+    match = ARXIV_DATE.search(text) if arxiv else None
+    if match:
+        try:
+            return date(int(match[3]), MONTHS.index(match[2].title()) + 1, int(match[1]))
+        except ValueError:
+            pass
+    return None
 
 
 class UntrustedDomain(ValueError):
@@ -123,7 +143,8 @@ def extract(url, domains=None, *, approved_hosts=()):
             metadata['arxiv_version'] = match[1]
             resolved = 'https://arxiv.org/pdf/' + match[1]
     elif 'html' in content_type:
-        document = trafilatura.bare_extraction(body, include_comments=False, include_tables=True)
+        document = trafilatura.bare_extraction(body, url=resolved, include_comments=False, include_tables=True,
+                                             with_metadata=True, date_extraction_params={'original_date':True})
         if not document:
             raise ValueError('No readable article text found')
         text = (document.text or '').replace('\x00', '')
@@ -138,4 +159,5 @@ def extract(url, domains=None, *, approved_hosts=()):
     if len(text) > MAX_CHARS:
         raise ValueError('Article exceeds extraction limit; no partial summary was generated')
     return dict(title=title.replace('\x00', '').strip() or (sections[0]['text'].splitlines()[0][:250]),
-                resolved_url=resolved, metadata=metadata, sections=sections, article_text=text)
+                resolved_url=resolved, metadata=metadata, sections=sections, article_text=text,
+                published_date=publication_date(metadata, text, arxiv=arxiv))

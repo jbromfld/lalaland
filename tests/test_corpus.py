@@ -238,7 +238,7 @@ def test_additive_migration_preserves_existing_data(settings):
     from pathlib import Path
     from backend.db import get_connection, create_source
     source=create_source(settings,name='Existing feed',tags=['ops'],feed_url='https://example.org/rss',source_weight=1,enabled=True)
-    migration='\n'.join(Path(f'sql/ddl/{name}').read_text() for name in ['001_corpus.sql','002_corpus_progress.sql','003_corpus_generations.sql','004_corpus_reviews.sql','005_corpus_quarantine.sql','006_corpus_sources.sql'])
+    migration='\n'.join(path.read_text() for path in sorted(Path('sql/ddl').glob('*.sql')))
     with get_connection(settings) as conn:
         conn.execute("""INSERT INTO inbox_entries(source_id,source_name,title,canonical_url,article_url,summary)
             VALUES (%s,'Existing feed','Existing article','https://example.org/old','https://example.org/old','Existing summary')""",(source['id'],))

@@ -165,9 +165,10 @@
       overflow-wrap: anywhere;
     }
 
-    .corpus-table th:first-child { width: 50%; }
-    .corpus-table th:nth-child(2) { width: 30%; }
-    .corpus-table th:last-child { width: 20%; }
+    .corpus-table th:first-child { width: 40%; }
+    .corpus-table th:nth-child(2) { width: 18%; }
+    .corpus-table th:nth-child(3) { width: 27%; }
+    .corpus-table th:last-child { width: 15%; }
     .corpus-table .meta { margin-top: 6px; }
 
     .card {
@@ -906,6 +907,12 @@
     function corpusReviewText(item) {
       return item.rating != null ? `Rated ${item.rating}/5 · Read` : item.read_at ? 'Read' : '';
     }
+    function corpusPublishedText(item) {
+      if (!item.published_date) return 'Unknown';
+      return new Date(`${item.published_date}T00:00:00`).toLocaleDateString(undefined, {
+        year:'numeric', month:'short', day:'numeric'
+      });
+    }
     function corpusSourceHosts(item) {
       return [...new Set([item.original_url, item.quarantine_url].map(url => new URL(url).hostname))];
     }
@@ -921,6 +928,7 @@
       corpusDetailPending = !item.quarantine_url && !['ready','failed'].includes(item.state);
       document.getElementById('corpus-detail').innerHTML = `<h2>${escapeHtml(item.title || item.original_url)}</h2>
         <p>${escapeHtml(corpusStateText(item))} · Model: ${escapeHtml(item.model)}</p>
+        <p>Published: ${escapeHtml(corpusPublishedText(item))}</p>
         <p>${escapeHtml(corpusTimingText(item))}</p>
         <a href="${safeUrl(item.resolved_url || item.original_url)}" target="_blank" rel="noopener noreferrer">Original article</a>
         <p>${escapeHtml(item.error || '')}</p>
@@ -948,13 +956,14 @@
         corpusPage = Math.max(1, Math.ceil(data.total / data.limit));
         return loadCorpus();
       }
-      document.getElementById('corpus-results-label').textContent = corpusSearching ? 'Saved articles (includes read and rated)' : 'Unread articles';
+      document.getElementById('corpus-results-label').textContent = corpusSearching ? 'Saved articles (includes read and rated) · Newest published first; unknown dates last' : 'Unread articles';
       corpusListPending = data.items.some(item => !item.quarantine_url && !['ready','failed'].includes(item.state));
       document.getElementById('corpus-results').innerHTML = data.items.length ? `
         <table class="corpus-table" aria-labelledby="corpus-results-label">
-          <thead><tr><th scope="col">Article</th><th scope="col">Status</th><th scope="col">Model</th></tr></thead>
+          <thead><tr><th scope="col">Article</th><th scope="col" ${corpusSearching ? 'aria-sort="descending"' : ''}>Published</th><th scope="col">Status</th><th scope="col">Model</th></tr></thead>
           <tbody>${data.items.map(item => `<tr>
             <td><a href="#corpus-detail" data-corpus-id="${escapeHtml(String(item.id))}">${escapeHtml(item.title || item.original_url)}</a></td>
+            <td>${escapeHtml(corpusPublishedText(item))}</td>
             <td>${escapeHtml(corpusStateText(item))}${item.quarantine_url ? `<p><a href="#corpus-detail" data-corpus-id="${escapeHtml(String(item.id))}">Review sources to release</a></p>` : ''}${corpusReviewText(item) ? `<p class="meta">${escapeHtml(corpusReviewText(item))}</p>` : ''}</td>
             <td>${escapeHtml(item.model)}</td>
           </tr>`).join('')}</tbody>

@@ -97,7 +97,7 @@ After Temporal recovers, run `docker-compose up -d` to restore application servi
 |---|---|---|
 | LA-1 | `research_sources` | Feed configuration, tags, weights, enabled state, and polling timestamps |
 | LA-1 | `inbox_entries` | URLs, concise summaries, timestamps, read state, ratings, and dismissal state |
-| LA-2 | `corpus_articles` | URLs, metadata, extracted `article_text` and `sections`, briefing, processing state, model, and prompt version |
+| LA-2 | `corpus_articles` | URLs, publication date, metadata, extracted `article_text` and `sections`, briefing, processing state, model, and prompt version |
 | LA-2 | `corpus_progress` | Current processing step, completion counts, retry attempt, and update time |
 | LA-2 | `corpus_generations` | Completed evidence chunks for resumable processing |
 | LA-2 | `corpus_reviews` | Read timestamps and 1–5 ratings |
@@ -111,7 +111,7 @@ titles, article text, and briefings. Canonical URLs provide deduplication, with
 tracking parameters removed before comparison.
 
 Schema initialization is idempotent. For an existing database, LA-2's additive SQL
-migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/006_corpus_sources.sql`.
+migrations are `sql/ddl/001_corpus.sql` through `sql/ddl/007_corpus_publication_date.sql`.
 They create the new corpus tables and index while preserving existing articles
 and RSS records. There is no need to rerun the initial schema sync script for
 these corpus additions.

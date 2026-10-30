@@ -60,6 +60,16 @@ reviewed articles, and an empty search browses all saved entries. **Show unread*
 returns to the default list. Reviewing an article preserves its summary and source
 text.
 
+Corpus lists and article details show the publication date. **Search all saved
+articles** sorts by publication date descending, including keyword searches;
+unknown dates appear last, with saved time and article ID breaking ties. The
+unread view retains its existing saved-time/relevance ordering. HTML dates come
+from publication metadata, preferring the original publication over modification
+dates. For arXiv PDFs, the date is the publication date of the extracted version
+from its stamp. Other PDFs without publication metadata show **Unknown**; PDF
+creation time is not treated as publication time. Migration `007` backfills dates
+from existing HTML metadata and arXiv stamps without fetching articles again.
+
 ### Overnight batches and manual override
 
 The separate `nightly-corpus-schedule` runs from **03:00–05:00 America/Detroit**
