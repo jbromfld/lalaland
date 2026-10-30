@@ -17,9 +17,10 @@ def enforce_article_trust(settings, row):
     if row.get('quarantine_url'):
         raise ApplicationError('Article is quarantined', type='CorpusQuarantined', non_retryable=True)
     try:
-        require_trusted(row['original_url'], settings.corpus_trusted_domains)
+        hosts = store.approved_hosts(settings)
+        require_trusted(row['original_url'], settings.corpus_trusted_domains, approved_hosts=hosts)
         if row.get('resolved_url'):
-            require_trusted(row['resolved_url'], settings.corpus_trusted_domains)
+            require_trusted(row['resolved_url'], settings.corpus_trusted_domains, approved_hosts=hosts)
     except UntrustedDomain as exc:
         store.quarantine(settings, row['id'], row['attempt'], exc.url, str(exc))
         raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc
@@ -44,7 +45,8 @@ def extract_article(data: dict) -> None:
     store.update(settings, row['id'], row['attempt'], state='extracting', error=None)
     activity.heartbeat()
     try:
-        result = extract(row['original_url'])
+        result = extract(row['original_url'], settings.corpus_trusted_domains,
+                         approved_hosts=store.approved_hosts(settings))
     except UntrustedDomain as exc:
         store.quarantine(settings, row['id'], row['attempt'], exc.url, str(exc))
         raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc

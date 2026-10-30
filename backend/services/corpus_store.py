@@ -2,7 +2,7 @@
 from psycopg.types.json import Jsonb
 from backend.db import get_connection
 
-SCHEMA = """
+SCHEMA = r"""
 CREATE TABLE IF NOT EXISTS corpus_articles (
  id BIGSERIAL PRIMARY KEY, original_url TEXT NOT NULL,
  canonical_url TEXT NOT NULL UNIQUE, resolved_url TEXT, title TEXT,
@@ -17,6 +17,30 @@ CREATE TABLE IF NOT EXISTS corpus_articles (
  ) STORED
 );
 CREATE INDEX IF NOT EXISTS idx_corpus_search ON corpus_articles USING GIN(search_document);
+ALTER TABLE corpus_articles ADD COLUMN IF NOT EXISTS published_date DATE;
+DO $$
+DECLARE article RECORD;
+BEGIN
+ FOR article IN
+  SELECT id, COALESCE(
+   substring(metadata->>'date' from '^[0-9]{4}-[0-9]{2}-[0-9]{2}'),
+   CASE WHEN canonical_url LIKE 'https://arxiv.org/abs/%' THEN
+    substring(article_text from 'arXiv:[[:space:]]*[^[:space:]]+v[0-9]+[[:space:]]+\[[^]]+\][[:space:]]+([0-9]{1,2}[[:space:]]+[A-Za-z]{3}[[:space:]]+[0-9]{4})')
+   END) AS source_date
+  FROM corpus_articles WHERE published_date IS NULL
+   AND (metadata->>'date' IS NOT NULL OR canonical_url LIKE 'https://arxiv.org/abs/%')
+ LOOP
+  BEGIN
+   UPDATE corpus_articles SET published_date=article.source_date::date
+    WHERE id=article.id AND article.source_date IS NOT NULL;
+  EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN
+   -- Incomplete or malformed source dates remain unknown.
+   NULL;
+  END;
+ END LOOP;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_corpus_published ON corpus_articles
+ (published_date DESC NULLS LAST, created_at DESC, id DESC);
 CREATE TABLE IF NOT EXISTS corpus_progress (
  article_id BIGINT PRIMARY KEY REFERENCES corpus_articles(id) ON DELETE CASCADE,
  attempt INTEGER NOT NULL, activity_attempt INTEGER NOT NULL,
@@ -38,6 +62,10 @@ CREATE TABLE IF NOT EXISTS corpus_quarantine (
  article_id BIGINT PRIMARY KEY REFERENCES corpus_articles(id) ON DELETE CASCADE,
  url TEXT NOT NULL, reason TEXT NOT NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS corpus_sources (
+ hostname TEXT PRIMARY KEY,
+ approved_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 """
 
@@ -68,7 +96,7 @@ def create(settings, url, canonical, model, quarantine_reason=None):
 
 
 def update(settings, article_id, attempt, **values):
-    allowed = {'state','error','resolved_url','title','metadata','article_text','sections','briefing'}
+    allowed = {'state','error','resolved_url','title','metadata','article_text','sections','briefing','published_date'}
     if not values or not set(values) <= allowed:
         raise ValueError('Invalid corpus update')
     params = [Jsonb(v) if k in {'metadata','sections','briefing'} else v for k,v in values.items()]
@@ -93,15 +121,16 @@ def search(settings, keyword, page, limit, *, include_reviewed=False):
     condition = 'WHERE ' + ' AND '.join(conditions) if conditions else ''
     tables = 'corpus_articles LEFT JOIN corpus_quarantine q ON q.article_id=corpus_articles.id LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id'
     args = (keyword,) if keyword else ()
-    order = "ts_rank(search_document, websearch_to_tsquery('english', %s)) DESC," if keyword else ''
+    order = ('published_date DESC NULLS LAST,' if include_reviewed else
+             "ts_rank(search_document, websearch_to_tsquery('english', %s)) DESC," if keyword else '')
     with get_connection(settings) as conn:
         total = conn.execute(f'SELECT count(*) AS count FROM {tables} {condition}', args).fetchone()['count']
-        rows = conn.execute(f'''SELECT id, original_url, title, state, error, model, q.url AS quarantine_url, q.reason AS quarantine_reason, corpus_articles.created_at, updated_at, rating, read_at,
+        rows = conn.execute(f'''SELECT id, original_url, title, published_date, state, error, model, q.url AS quarantine_url, q.reason AS quarantine_reason, corpus_articles.created_at, updated_at, rating, read_at,
             (SELECT jsonb_build_object('stage',p.stage,'current',p.current,'total',p.total,
                 'completed',p.completed,'activity_attempt',p.activity_attempt,'updated_at',p.updated_at)
              FROM corpus_progress p WHERE p.article_id=corpus_articles.id AND p.attempt=corpus_articles.attempt) AS progress
             FROM {tables} {condition} ORDER BY {order} corpus_articles.created_at DESC, id DESC LIMIT %s OFFSET %s''',
-            (*args, *args, limit, (page-1)*limit)).fetchall()
+            (*args, *(args if not include_reviewed else ()), limit, (page-1)*limit)).fetchall()
     return {'items':rows, 'total':total, 'page':page, 'limit':limit}
 
 
@@ -168,10 +197,23 @@ def quarantine(settings, article_id, attempt, url, reason):
                 (article_id,url,reason))
 
 
-def release(settings, article_id):
+def approved_hosts(settings):
+    """UI approvals trust exact hosts; configured domains also trust subdomains."""
     with get_connection(settings) as conn:
-        row = conn.execute("DELETE FROM corpus_quarantine WHERE article_id=%s RETURNING article_id", (article_id,)).fetchone()
+        return tuple(row['hostname'] for row in conn.execute('SELECT hostname FROM corpus_sources').fetchall())
+
+
+def release(settings, article_id, *, approved_hosts=(), quarantine_url=None):
+    with get_connection(settings) as conn:
+        # Match quarantine's lock order, and serialize concurrent release/deletion.
+        if not conn.execute('SELECT id FROM corpus_articles WHERE id=%s FOR UPDATE', (article_id,)).fetchone():
+            return None
+        row = conn.execute('''DELETE FROM corpus_quarantine WHERE article_id=%s
+            AND (%s::text IS NULL OR url=%s) RETURNING article_id''',
+            (article_id, quarantine_url, quarantine_url)).fetchone()
         if row:
+            for hostname in approved_hosts:
+                conn.execute('INSERT INTO corpus_sources(hostname) VALUES (%s) ON CONFLICT DO NOTHING', (hostname,))
             return conn.execute("""UPDATE corpus_articles SET state='queued',error=NULL,
                 attempt=attempt+1,updated_at=NOW() WHERE id=%s RETURNING *""", (article_id,)).fetchone()
 

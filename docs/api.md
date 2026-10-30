@@ -27,12 +27,12 @@ Run commands from the repository root unless stated otherwise.
 |---|---|
 | `GET /api/ollama/models` | List installed models, corpus default, and discovery errors |
 | `POST /api/corpus` | Queue `{"url": "https://arxiv.org/pdf/2607.01077"}`; optional `model` overrides the default |
-| `GET /api/corpus` | Paginated unread list/search using `keyword`, `page`, and `limit`; `include_reviewed=true` includes reviewed articles |
+| `GET /api/corpus` | Paginated unread list/search using `keyword`, `page`, and `limit`; includes nullable ISO `published_date`; `include_reviewed=true` includes reviewed articles and sorts by publication date descending, unknown dates last |
 | `DELETE /api/corpus/{id}` | Permanently delete an article and its extracted text, briefing, progress, cached evidence, review, and quarantine records |
-| `GET /api/corpus/{id}` | Retrieve saved article, briefing, progress, and review state |
+| `GET /api/corpus/{id}` | Retrieve saved article, nullable ISO `published_date`, briefing, progress, and review state |
 | `GET /api/corpus/schedule` | Read the configured overnight window |
 | `POST /api/corpus/run-now` | Start or reuse the active manual batch; return immediately |
-| `POST /api/corpus/{id}/release` | Release quarantine after the original and blocked domains are configured as trusted |
+| `POST /api/corpus/{id}/release` | Release quarantine and queue a new attempt; optional `{"approve_sources":true}` saves exact-host source approvals, otherwise both hosts must already be trusted |
 | `POST /api/corpus/{id}/read` | Mark a completed briefing read |
 | `POST /api/corpus/{id}/rate` | Rate with `{"rating": 4}` and mark read |
 | `POST /api/corpus/{id}/retry` | Queue a failed article using `{}` or `{"model": "another-installed-model"}` |

@@ -122,7 +122,7 @@ def test_worker_quarantines_unknown_redirect_and_stale_attempts(settings, monkey
     settings = replace(settings, corpus_trusted_domains=('arxiv.org',))
     monkeypatch.setattr(corpus, 'load_settings', lambda: settings)
     row, _ = store.create(settings, 'https://arxiv.org/pdf/123', 'https://arxiv.org/abs/123', 'model')
-    def redirect(url):
+    def redirect(url, *args, **kwargs):
         raise extraction.UntrustedDomain('https://unknown.org/paper')
     monkeypatch.setattr(corpus, 'extract', redirect)
     summarize = Mock()
@@ -185,3 +185,85 @@ def test_trusted_host_still_rejects_dns_rebinding(monkeypatch):
     with pytest.raises(ValueError, match='private'):
         extraction.download('https://arxiv.org/paper')
     session.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ui_source_approval_shared_with_submission_and_worker(settings, monkeypatch):
+    settings = replace(settings, corpus_trusted_domains=())
+    monkeypatch.setattr(corpus_api, 'load_settings', lambda: settings)
+    monkeypatch.setattr(corpus, 'load_settings', lambda: settings)
+    monkeypatch.setattr(corpus_api, 'validate_url', lambda url: url)
+    monkeypatch.setattr(corpus_api, 'resolve_model', lambda model: 'model')
+    app = FastAPI()
+    app.include_router(corpus_api.router)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+        row = (await client.post('/api/corpus', json={'url':'https://example.org/paper'})).json()
+        store.quarantine(settings, row['id'], 1, 'https://cdn.example.net/paper', 'Unknown redirect')
+        released = await client.post(f'/api/corpus/{row["id"]}/release', json={'approve_sources':True})
+        assert released.status_code == 200
+        assert released.json()['state'] == 'queued'
+        assert released.json()['attempt'] == 2
+        assert set(store.approved_hosts(settings)) == {'example.org', 'cdn.example.net'}
+        duplicate = await client.post(f'/api/corpus/{row["id"]}/release', json={'approve_sources':True})
+        assert duplicate.status_code == 409
+        next_row = (await client.post('/api/corpus', json={'url':'https://example.org/next'})).json()
+        assert next_row['quarantine_url'] is None
+        subdomain = (await client.post('/api/corpus', json={'url':'https://other.example.org/paper'})).json()
+        assert subdomain['quarantine_url']
+
+    initialize_database(settings)
+    extracted = Mock(return_value={'article_text':'text', 'resolved_url':'https://cdn.example.net/paper'})
+    monkeypatch.setattr(corpus, 'extract', extracted)
+    env = ActivityEnvironment()
+    env.run(corpus.extract_article, {'id':row['id'], 'attempt':2})
+    assert set(extracted.call_args.kwargs['approved_hosts']) == {'example.org', 'cdn.example.net'}
+    assert extracted.call_args.args[1] == ()
+    monkeypatch.setattr(corpus, 'summarize', Mock(return_value={'summary':'Ready'}))
+    env.run(corpus.summarize_article, {'id':row['id'], 'attempt':2})
+    assert store.get(settings, row['id'])['state'] == 'ready'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('blocked_url', ['https://private.example/paper', 'http://example.org/paper'])
+async def test_source_approval_does_not_bypass_url_validation(settings, monkeypatch, blocked_url):
+    monkeypatch.setattr(corpus_api, 'load_settings', lambda: settings)
+    row, _ = store.create(settings, 'https://example.org/paper', 'https://example.org/paper', 'model')
+    store.quarantine(settings, row['id'], 1, blocked_url, 'Blocked')
+    def validate(url):
+        if url == blocked_url:
+            raise ValueError('Article URLs must resolve only to public addresses')
+    monkeypatch.setattr(corpus_api, 'validate_url', validate)
+    with pytest.raises(corpus_api.HTTPException) as exc:
+        await corpus_api.release(row['id'], corpus_api.ReleaseRequest(approve_sources=True))
+    assert exc.value.status_code == 422
+    assert store.approved_hosts(settings) == ()
+    assert store.get(settings, row['id'])['quarantine_url'] == blocked_url
+    assert store.queued_articles(settings) == []
+
+
+def test_release_changed_quarantine_does_not_approve_sources(settings):
+    row, _ = store.create(settings, 'https://example.org/p', 'https://example.org/p', 'model', 'Untrusted')
+    store.quarantine(settings, row['id'], 1, 'https://new.example/p', 'New redirect')
+    assert store.release(settings, row['id'], approved_hosts=('example.org',),
+                         quarantine_url='https://example.org/p') is None
+    assert store.approved_hosts(settings) == ()
+    assert store.get(settings, row['id'])['quarantine_url'] == 'https://new.example/p'
+
+
+def test_download_approved_host_still_blocks_unknown_redirect(monkeypatch):
+    monkeypatch.setattr(extraction.socket, 'getaddrinfo', lambda *a, **kw: [(2,1,6,'',('93.184.216.34',443))])
+    response = Mock(is_redirect=True, headers={'Location':'https://unknown.org/paper'})
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    session = Mock()
+    session.get.return_value = response
+    monkeypatch.setattr(extraction.requests, 'Session', lambda: session)
+    with pytest.raises(extraction.UntrustedDomain):
+        extraction.download('https://example.org/paper', (), approved_hosts=('example.org',))
+    assert session.get.call_count == 1
+
+
+def test_approved_host_does_not_trust_its_subdomains():
+    extraction.require_trusted('https://example.org/p', (), approved_hosts=('example.org',))
+    with pytest.raises(extraction.UntrustedDomain):
+        extraction.require_trusted('https://sub.example.org/p', (), approved_hosts=('example.org',))
