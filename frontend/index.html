@@ -230,6 +230,24 @@
       gap: 12px;
     }
 
+    .knowledge-options {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .knowledge-options label { min-width: 0; }
+
+    .knowledge-options input,
+    .knowledge-options select {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      height: 44px;
+    }
+
+    @media (max-width: 600px) {
+      .knowledge-options { grid-template-columns: minmax(0, 1fr); }
+    }
+
     label {
       display: grid;
       gap: 6px;
@@ -359,12 +377,12 @@
           <div class="view-header"><div><h2>Knowledge search</h2><p>Search indexed RSS summaries and corpus research, or ask for an answer with sources.</p></div></div>
           <form id="knowledge-form">
             <label>Question <input id="knowledge-query" type="search" required maxlength="4000" placeholder="What does the research say about vision-language models?" /></label>
-            <div class="form-grid">
+            <div class="form-grid knowledge-options">
               <label>Return <select id="knowledge-mode"><option value="chunks">Chunks</option><option value="summary">Synthesized summary</option></select></label>
-              <label>Summary model <select id="knowledge-model" disabled><option value="">Configured default</option></select></label>
               <label>Sources <select id="knowledge-collection"><option value="all">RSS and corpus</option><option value="lalaland-rss">RSS summaries</option><option value="lalaland-corpus">Corpus research</option></select></label>
               <label>Maximum chunks <input id="knowledge-top-k" type="number" min="1" max="100" value="5" required /></label>
             </div>
+            <label>Summary model <select id="knowledge-model" disabled><option value="">Configured default</option></select></label>
             <button class="primary" id="knowledge-submit" type="submit">Search knowledge</button>
           </form>
           <p id="knowledge-model-status" role="status"></p>
