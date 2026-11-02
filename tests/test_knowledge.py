@@ -105,16 +105,11 @@ def test_runtime_schema_matches_migration():
 
 
 @pytest.mark.asyncio
-async def test_sync_workflow_and_schedule():
-    from datetime import timedelta
-    from unittest.mock import AsyncMock
+async def test_sync_workflow():
     from temporalio import activity
-    from temporalio.client import ScheduleOverlapPolicy
     from temporalio.testing import WorkflowEnvironment
     from temporalio.worker import Worker
-    from backend.config import Settings
     from backend.temporal.knowledge import KnowledgeSyncWorkflow
-    from backend.temporal.client import ensure_knowledge_schedule
 
     @activity.defn(name='sync_knowledge')
     async def sync():
@@ -125,12 +120,62 @@ async def test_sync_workflow_and_schedule():
             result = await env.client.execute_workflow(KnowledgeSyncWorkflow.run, id='knowledge-test', task_queue='knowledge-test')
             assert result['indexed'] == 1
 
+
+@pytest.mark.asyncio
+async def test_sync_schedule_disabled_without_url():
+    from backend.config import Settings
+    from backend.temporal.client import ensure_knowledge_schedule
+
     client = Mock()
     await ensure_knowledge_schedule(client, Settings())
     client.get_schedule_handle.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('exists', [False, True])
+@pytest.mark.parametrize('overrides,cron,timezone', [
+    ({}, '0 7 * * *', 'America/Detroit'),
+    ({'knowledge_schedule_hour': 9, 'knowledge_schedule_minute': 30,
+      'knowledge_schedule_timezone': 'UTC'}, '30 9 * * *', 'UTC'),
+])
+async def test_sync_schedule_creates_or_updates_daily_schedule(exists, overrides, cron, timezone):
+    from unittest.mock import AsyncMock
+    from temporalio.client import ScheduleOverlapPolicy
+    from temporalio.service import RPCError, RPCStatusCode
+    from backend.config import Settings
+    from backend.temporal.client import ensure_knowledge_schedule
+
+    client = Mock(create_schedule=AsyncMock())
     handle = Mock(describe=AsyncMock(), update=AsyncMock())
+    if not exists:
+        handle.describe.side_effect = RPCError('missing', RPCStatusCode.NOT_FOUND, b'')
     client.get_schedule_handle.return_value = handle
-    await ensure_knowledge_schedule(client, replace(Settings(), knowledge_service_url='http://retrieval.test'))
-    schedule = handle.update.call_args.args[0](None).schedule
-    assert schedule.spec.intervals[0].every == timedelta(minutes=1)
+    await ensure_knowledge_schedule(client, replace(Settings(), knowledge_service_url='http://retrieval.test', **overrides))
+    client.get_schedule_handle.assert_called_once_with('knowledge-sync-schedule')
+    if exists:
+        schedule = handle.update.call_args.args[0](None).schedule
+        client.create_schedule.assert_not_called()
+    else:
+        schedule = client.create_schedule.call_args.args[1]
+        assert client.create_schedule.call_args.args[0] == 'knowledge-sync-schedule'
+        handle.update.assert_not_called()
+    assert schedule.spec.cron_expressions == [cron]
+    assert not schedule.spec.intervals
+    assert schedule.spec.time_zone_name == timezone
+    assert schedule.action.id == 'knowledge-sync-workflow'
     assert schedule.policy.overlap == ScheduleOverlapPolicy.SKIP
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('overrides', [
+    {'knowledge_schedule_hour': -1}, {'knowledge_schedule_hour': 24},
+    {'knowledge_schedule_minute': -1}, {'knowledge_schedule_minute': 60},
+])
+async def test_sync_schedule_rejects_invalid_time(overrides):
+    from backend.config import Settings
+    from backend.temporal.client import ensure_knowledge_schedule
+
+    client = Mock()
+    with pytest.raises(ValueError, match='Invalid knowledge sync schedule'):
+        await ensure_knowledge_schedule(client, replace(Settings(), knowledge_service_url='http://retrieval.test', **overrides))
+    client.get_schedule_handle.assert_not_called()

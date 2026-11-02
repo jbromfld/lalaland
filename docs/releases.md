@@ -28,3 +28,11 @@ digests; it does not build the images. An active environment requires automatic
 sync enabled in its Application policy, or an explicit manual sync. The initial
 bootstrap on a Compose-owned laptop starts paused until explicit cutover. Reuse image artifacts for promotion; rebuilding
 source is not a substitute for preserving an existing digest.
+
+After promotion, reload any open dashboard tabs to load the new frontend code.
+The HTML uses `Cache-Control: no-cache` so reloads revalidate the page with the
+server. An already-open tab keeps running its loaded code until reloaded.
+If a UI change appears missing, compare the running deployment image digests
+with `build/release.json` and check the HTML served at the dashboard URL before
+rebuilding. Publication dates appear in **Corpus**, including **Search all saved
+articles**; records without an extracted publication date display **Unknown**.

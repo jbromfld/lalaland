@@ -90,7 +90,7 @@ def _normalize_source_request(request: SourceRequest) -> dict:
 
 @app.get("/", response_class=FileResponse)
 def index() -> FileResponse:
-    return FileResponse(settings.frontend_dir / "index.html")
+    return FileResponse(settings.frontend_dir / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")
