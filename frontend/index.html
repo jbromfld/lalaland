@@ -344,6 +344,7 @@
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
           <button class="nav-button" type="button" data-view-target="search-view">Search</button>
+          <button class="nav-button" type="button" data-view-target="knowledge-view">Knowledge</button>
         </nav>
 
         <div class="actions">
@@ -354,6 +355,23 @@
       </aside>
 
       <section class="content">
+        <section class="panel view" id="knowledge-view">
+          <div class="view-header"><div><h2>Knowledge search</h2><p>Search indexed RSS summaries and corpus research, or ask for an answer with sources.</p></div></div>
+          <form id="knowledge-form">
+            <label>Question <input id="knowledge-query" type="search" required maxlength="4000" placeholder="What does the research say about vision-language models?" /></label>
+            <div class="form-grid">
+              <label>Return <select id="knowledge-mode"><option value="chunks">Chunks</option><option value="summary">Synthesized summary</option></select></label>
+              <label>Summary model <select id="knowledge-model" disabled><option value="">Configured default</option></select></label>
+              <label>Sources <select id="knowledge-collection"><option value="all">RSS and corpus</option><option value="lalaland-rss">RSS summaries</option><option value="lalaland-corpus">Corpus research</option></select></label>
+              <label>Maximum chunks <input id="knowledge-top-k" type="number" min="1" max="100" value="5" required /></label>
+            </div>
+            <button class="primary" id="knowledge-submit" type="submit">Search knowledge</button>
+          </form>
+          <p id="knowledge-model-status" role="status"></p>
+          <p id="knowledge-status" role="status" aria-live="polite"></p>
+          <article id="knowledge-answer" hidden><h3>Synthesized answer</h3><div class="summary" id="knowledge-summary"></div><p class="meta" id="knowledge-agent"></p></article>
+          <div class="grid" id="knowledge-results"></div>
+        </section>
         <section class="panel view" id="corpus-view">
           <div class="view-header"><div><h2>Engineering research corpus</h2><p>Queue HTTPS papers or articles for an overnight engineering briefing.</p></div></div>
           <form id="corpus-form">
@@ -872,6 +890,57 @@
           }
         }
       });
+    });
+
+    const knowledgeModel = document.getElementById('knowledge-model');
+    async function loadKnowledgeModels() {
+      try {
+        const data = await api('/api/knowledge/models');
+        const selected = knowledgeModel.value;
+        knowledgeModel.innerHTML = `<option value="">Configured default (${escapeHtml(data.default_model)})</option>` +
+          data.models.map(model => `<option value="${escapeHtml(model)}">${escapeHtml(model)}</option>`).join('');
+        if (data.models.includes(selected)) knowledgeModel.value = selected;
+        document.getElementById('knowledge-model-status').textContent = data.error || data.warning || '';
+      } catch (error) { document.getElementById('knowledge-model-status').textContent = error.message; }
+    }
+    document.querySelector('[data-view-target="knowledge-view"]').addEventListener('click', loadKnowledgeModels);
+    document.getElementById('knowledge-mode').addEventListener('change', event => {
+      knowledgeModel.disabled = event.target.value !== 'summary';
+    });
+    document.getElementById('knowledge-form').addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = document.getElementById('knowledge-submit');
+      const status = document.getElementById('knowledge-status');
+      const results = document.getElementById('knowledge-results');
+      const answer = document.getElementById('knowledge-answer');
+      const mode = document.getElementById('knowledge-mode').value;
+      const collection = document.getElementById('knowledge-collection').value;
+      button.disabled = true;
+      answer.hidden = true;
+      results.replaceChildren();
+      status.textContent = mode === 'summary' ? 'Retrieving evidence and preparing an answer. The agent may wait for other research processing.' : 'Searching indexed knowledge…';
+      results.setAttribute('aria-busy', 'true');
+      try {
+        const data = await api('/api/knowledge/query', {method: 'POST', body: JSON.stringify({
+          query: document.getElementById('knowledge-query').value.trim(), mode,
+          ...(mode === 'summary' && knowledgeModel.value ? {model: knowledgeModel.value} : {}),
+          top_k: Number(document.getElementById('knowledge-top-k').value),
+          filters: collection === 'all' ? {} : {collection: [collection]}
+        })});
+        const chunks = data.chunks || [];
+        if (mode === 'summary') {
+          document.getElementById('knowledge-summary').textContent = data.summary;
+          document.getElementById('knowledge-agent').textContent = data.model ? `LA-3 · ${data.model} · Answer based on retrieved excerpts; verify claims against the sources below.` : '';
+          answer.hidden = false;
+        }
+        status.textContent = chunks.length ? `${chunks.length} ${mode === 'summary' ? 'evidence excerpts used. Sources below.' : 'matching chunks.'}` : 'No matching evidence found. Try another question or source filter.';
+        results.innerHTML = chunks.map(chunk => `<article class="card">
+          <h3>${escapeHtml(chunk.citation || '')} ${chunk.url ? `<a href="${escapeHtml(safeUrl(chunk.url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(chunk.title || 'Untitled')}</a>` : escapeHtml(chunk.title || 'Untitled')}</h3>
+          <p class="meta">${escapeHtml(chunk.collection || '')} · ${escapeHtml(chunk.content_type || '')}${chunk.section != null ? ` · Section ${escapeHtml(chunk.section)}` : ''}</p>
+          <div class="summary">${escapeHtml(chunk.content || '')}</div>
+        </article>`).join('');
+      } catch (error) { status.textContent = error.message; }
+      finally { button.disabled = false; results.setAttribute('aria-busy', 'false'); }
     });
 
     const corpusStatus = document.getElementById('corpus-status');

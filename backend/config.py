@@ -28,6 +28,9 @@ class Settings:
     corpus_schedule_timezone: str = "America/Detroit"
     knowledge_service_url: str = ""
     knowledge_timeout_seconds: int = 120
+    knowledge_model: str = "granite4.2:3b"
+    knowledge_agent_timeout_seconds: int = 120
+    knowledge_agent_instructions: str = "Answer the question concisely, explaining the main findings and relevant limitations."
     knowledge_schedule_hour: int = 7
     knowledge_schedule_minute: int = 0
     knowledge_schedule_timezone: str = "America/Detroit"
@@ -57,6 +60,9 @@ def load_settings() -> Settings:
         defaults,
         knowledge_service_url=os.getenv("KNOWLEDGE_SERVICE_URL", defaults.knowledge_service_url).rstrip("/"),
         knowledge_timeout_seconds=int(os.getenv("KNOWLEDGE_TIMEOUT_SECONDS", str(defaults.knowledge_timeout_seconds))),
+        knowledge_model=os.getenv("KNOWLEDGE_MODEL", defaults.knowledge_model),
+        knowledge_agent_timeout_seconds=int(os.getenv("KNOWLEDGE_AGENT_TIMEOUT_SECONDS", str(defaults.knowledge_agent_timeout_seconds))),
+        knowledge_agent_instructions=os.getenv("KNOWLEDGE_AGENT_INSTRUCTIONS", defaults.knowledge_agent_instructions),
         knowledge_schedule_hour=int(os.getenv("KNOWLEDGE_SCHEDULE_HOUR", str(defaults.knowledge_schedule_hour))),
         knowledge_schedule_minute=int(os.getenv("KNOWLEDGE_SCHEDULE_MINUTE", str(defaults.knowledge_schedule_minute))),
         knowledge_schedule_timezone=os.getenv("KNOWLEDGE_SCHEDULE_TIMEZONE", defaults.knowledge_schedule_timezone),

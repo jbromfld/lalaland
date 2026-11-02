@@ -62,10 +62,25 @@ curl http://127.0.0.1:8000/api/knowledge/query \
 `POST /api/knowledge/query` forwards to lassy and defaults the collection filter to
 both lalaland collections. Explicit collection filters can search other shared
 knowledge. Scores, citations and document identifiers pass through unchanged.
-Existing Inbox/Corpus navigation and record search remain database views; the new
-knowledge endpoint is the hybrid retrieval interface. Clients can also call lassy
-directly or use `local-mcp-server`.
+The **Knowledge** dashboard tab searches both collections, with optional RSS or
+corpus filtering and a maximum chunk count. Choose **Chunks** to inspect retrieved
+excerpts, or **Synthesized summary** for a cited answer from LA-3. Its model dropdown
+lists installed Ollama models and defaults to `knowledge_model` in `backend/config.py`
+(`KNOWLEDGE_MODEL` overrides it). A selected model applies only to that request.
+`KNOWLEDGE_AGENT_TIMEOUT_SECONDS` and `KNOWLEDGE_AGENT_INSTRUCTIONS` configure the
+third agent independently of the RSS and corpus agents; it uses the shared
+`OLLAMA_BASE_URL` and inference queue.
 
-This integration provides retrieved evidence. Cross-article summary generation,
-publication-date range filters, and exhaustive “all matching articles” enumeration
-are subsequent features; top-k chunk retrieval does not establish completeness.
+API callers can pass `"mode": "summary"` and optionally `"model": "installed-model"`
+to `POST /api/knowledge/query`. Omit `mode` to retain the existing chunk response.
+Summary responses add `summary` and `model`, and include the evidence excerpts in
+`chunks` with their original citation labels and source links. Evidence is limited
+to 24,000 UTF-8 bytes in total and 3,000 bytes per chunk. An empty retrieval skips
+generation and returns a no-evidence message. `GET /api/knowledge/models` returns
+the configured default, installed models, and discovery warnings.
+
+Existing Inbox/Corpus record search remains a database view. Clients can also call
+lassy directly or use `local-mcp-server` for retrieval. Summaries reflect the top-k
+evidence, not an exhaustive review; verify claims against the displayed sources.
+Publication-date range filters and exhaustive “all matching articles” enumeration
+remain subsequent features.

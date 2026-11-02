@@ -33,6 +33,9 @@ model selection.
 | `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
 | `KNOWLEDGE_SCHEDULE_HOUR` / `KNOWLEDGE_SCHEDULE_MINUTE` | Daily knowledge sync start | `7` / `0` |
 | `KNOWLEDGE_SCHEDULE_TIMEZONE` | Knowledge sync timezone | `America/Detroit` |
+| `KNOWLEDGE_MODEL` | LA-3 knowledge answer model (UI default) | `granite4.2:3b` |
+| `KNOWLEDGE_AGENT_TIMEOUT_SECONDS` | LA-3 generation timeout | `120` |
+| `KNOWLEDGE_AGENT_INSTRUCTIONS` | LA-3 answer style instructions | Answer the question concisely, explaining the main findings and relevant limitations. |
 | `TEMPORAL_ADDRESS` | Temporal endpoint | `host.docker.internal:30733` |
 | `TEMPORAL_NAMESPACE` | Temporal namespace | `lalaland` |
 
