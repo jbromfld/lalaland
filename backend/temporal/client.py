@@ -88,8 +88,13 @@ async def ensure_corpus_schedule(client: Client, settings: Settings) -> None:
 
 async def ensure_knowledge_schedule(client: Client, settings: Settings) -> None:
     from .knowledge import KnowledgeSyncWorkflow
-    if not settings.knowledge_service_url:
-        # An existing schedule safely no-ops because the activity checks configuration.
+    if not settings.knowledge_active:
+        try:
+            await client.get_schedule_handle('knowledge-sync-schedule').pause(note='Knowledge integration is disabled')
+        except RPCError as exc:
+            if exc.status != RPCStatusCode.NOT_FOUND:
+                logger.warning('Could not pause optional knowledge schedule: %s', exc)
+        # Registered activities still safely no-op for an in-flight run.
         return
     if not (0 <= settings.knowledge_schedule_hour <= 23 and 0 <= settings.knowledge_schedule_minute <= 59):
         raise ValueError('Invalid knowledge sync schedule hour or minute')

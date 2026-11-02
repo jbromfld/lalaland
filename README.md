@@ -1,13 +1,14 @@
 # Lalaland
 
-Two local research agents with a shared browser dashboard:
+Three local research agents with a shared browser dashboard; LA-3 is optional:
 
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
 - **LA-2 — Research corpus:** queues paper/article URLs and produces engineering deep dives from extracted full text.
+- **LA-3 — Knowledge assistant (optional):** searches indexed RSS summaries and corpus research, returning evidence chunks or a synthesized answer with citations.
 
-Both use Ollama for inference, Temporal for durable processing, and PostgreSQL for
-storage. Optional [Lassy integration](docs/knowledge.md) indexes saved content for
-shared hybrid retrieval.
+The platform uses Ollama for inference, Temporal for durable background processing,
+and PostgreSQL for storage. LA-3 adds [Lassy integration](docs/knowledge.md) for
+shared hybrid retrieval. It is disabled by default; LA-1 and LA-2 run without Lassy.
 
 ## Quickstart with Docker
 
@@ -19,7 +20,7 @@ Temporal `lalaland` namespace if missing; Compose starts only the application.
 cp -n .env.example .env             # Preserve any existing configuration
 # Edit .env: database credentials, service addresses, models, and ports.
 # Models must already be installed in Ollama; pull configured models as needed:
-ollama pull granite4.2:3b            # Current default for both agents
+ollama pull granite4.2:3b            # Current default for all three agents
 
 docker compose up -d --build
 ```
@@ -64,12 +65,23 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
    **Run queued articles now**, or wait for the overnight batch (default
    03:00–05:00 America/Detroit). Submission alone does not start inference.
 3. Read or rate results; use search to find reviewed material later.
+4. With LA-3 enabled, open **Knowledge** and enter a question. Choose **Chunks**
+   for retrieved excerpts or **Synthesized summary** for an answer with supporting
+   sources. Filter to RSS, corpus, or both; the summary model dropdown lists
+   installed Ollama models and defaults to `knowledge_model` in `backend/config.py`.
 
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
 domains enter quarantine. Select **Review sources to release**, then **Trust sources
 and release** to approve the displayed hostnames and queue the article.
 PDF processing uses extracted text; it does not interpret figures or scanned pages.
 See [agent behavior and source policies](docs/agents.md) for details.
+
+To enable LA-3, configure both backend and worker with `KNOWLEDGE_ENABLED=true`
+and `KNOWLEDGE_SERVICE_URL` pointing to Lassy's base URL, then rebuild/restart.
+Set `KNOWLEDGE_MODEL` to override the default summary model independently of LA-1
+and LA-2. Follow [Lassy setup and backfill](docs/knowledge.md) to index existing
+records. Knowledge sync runs daily at 07:00 America/Detroit by default; its
+schedule is configurable. Leave the feature disabled for a standalone deployment.
 
 ## Rebuild, restart, and check
 

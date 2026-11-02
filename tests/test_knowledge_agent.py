@@ -14,7 +14,7 @@ from backend.services import knowledge_agent
 
 @pytest.fixture
 def retrieval(monkeypatch):
-    settings = replace(Settings(), knowledge_service_url='http://retrieval.test', knowledge_model='third-agent')
+    settings = replace(Settings(), knowledge_enabled=True, knowledge_service_url='http://retrieval.test', knowledge_model='third-agent')
     monkeypatch.setattr(knowledge_api, 'load_settings', lambda: settings)
     result = {'chunks': [{'citation': '[1]', 'content': 'Measured improvement.',
                           'title': 'Research', 'url': 'https://example.org', 'score': 0.5}],

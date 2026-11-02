@@ -11,9 +11,18 @@ briefings to the sibling `lassy` retrieval service. Lassy owns chunking, embeddi
 hybrid keyword/cosine retrieval, fusion and reranking. Lalaland remains the source
 of truth and owns summary generation. The retrieval index can be rebuilt.
 
+Knowledge is **disabled by default** (`knowledge_enabled=False` in
+`backend/config.py`). A standalone installation needs no Lassy service, Lassy
+database, embedding model, or LA-3 model. Leave `KNOWLEDGE_ENABLED` unset or false.
+RSS briefings, corpus processing, and their saved-record searches remain available.
+The Knowledge tab stays hidden, and knowledge query/model endpoints return a clear
+disabled response without contacting Lassy or Ollama.
+
 1. Apply `lassy/db/002_documents.sql` to an existing lassy database, then rebuild/restart
    lassy. New lassy databases use its complete `db/init.sql`.
-2. Set `KNOWLEDGE_SERVICE_URL` to lassy's **base URL**, on both backend and worker.
+2. Set `KNOWLEDGE_ENABLED=true` and `KNOWLEDGE_SERVICE_URL` to lassy's **base URL**,
+   on both backend and worker. Existing installations with only the URL must also
+   opt in with `KNOWLEDGE_ENABLED=true`.
    With the default lassy Compose port, use `http://host.docker.internal:8082`
    inside Docker, or `http://127.0.0.1:8082` for native processes. Set
    `KNOWLEDGE_TIMEOUT_SECONDS` if the default 120 seconds is insufficient.
@@ -44,6 +53,18 @@ reindex. Delivery retries failed records, and versioned acknowledgements preserv
 concurrent edits/deletes. `knowledge_outbox` exposes pending events, attempt counts,
 and error types. A delivery outage does not block article processing. An unset
 URL disables delivery; queued events remain for later synchronization.
+
+To disable an existing integration, set `KNOWLEDGE_ENABLED=false` on backend and
+worker and restart both. Backend startup pauses an existing knowledge schedule;
+an in-flight sync safely returns without delivery after the worker restarts.
+Optional schedule setup failures are logged without preventing core startup.
+Fresh databases skip knowledge schema installation when disabled. Existing
+knowledge tables and triggers are preserved so pending events and subsequent
+changes/deletes remain available if you enable the integration again. No source
+records or remote index data are removed. Backfill/sync/status CLI commands also
+return a disabled message without database access while disabled. Re-enabling
+updates/unpauses the daily schedule; run backfill when enabling it on an existing
+database for the first time.
 
 Collections are `lalaland-rss` and `lalaland-corpus`. Corpus article IDs are their
 numeric source ID as a string; briefing IDs append `-briefing`. Both have the

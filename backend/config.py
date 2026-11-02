@@ -26,6 +26,7 @@ class Settings:
     corpus_schedule_hour: int = 3
     corpus_end_hour: int = 5
     corpus_schedule_timezone: str = "America/Detroit"
+    knowledge_enabled: bool = False
     knowledge_service_url: str = ""
     knowledge_timeout_seconds: int = 120
     knowledge_model: str = "granite4.2:3b"
@@ -36,6 +37,10 @@ class Settings:
     knowledge_schedule_timezone: str = "America/Detroit"
     temporal_address: str = "host.docker.internal:30733"
     temporal_namespace: str = "lalaland"
+
+    @property
+    def knowledge_active(self) -> bool:
+        return self.knowledge_enabled and bool(self.knowledge_service_url)
 
 
 def trusted_domains(value: str) -> tuple[str, ...]:
@@ -58,6 +63,7 @@ def load_settings() -> Settings:
     defaults = Settings()
     return replace(
         defaults,
+        knowledge_enabled=boolean_setting("KNOWLEDGE_ENABLED", defaults.knowledge_enabled),
         knowledge_service_url=os.getenv("KNOWLEDGE_SERVICE_URL", defaults.knowledge_service_url).rstrip("/"),
         knowledge_timeout_seconds=int(os.getenv("KNOWLEDGE_TIMEOUT_SECONDS", str(defaults.knowledge_timeout_seconds))),
         knowledge_model=os.getenv("KNOWLEDGE_MODEL", defaults.knowledge_model),
@@ -100,3 +106,12 @@ def load_settings() -> Settings:
         temporal_address=os.getenv("TEMPORAL_ADDRESS", defaults.temporal_address),
         temporal_namespace=os.getenv("TEMPORAL_NAMESPACE", defaults.temporal_namespace),
     )
+
+
+def boolean_setting(name: str, default: bool) -> bool:
+    value = os.getenv(name, str(default)).strip().lower()
+    if value in ('true', '1', 'yes', 'on'):
+        return True
+    if value in ('false', '0', 'no', 'off'):
+        return False
+    raise ValueError(f'{name} must be a boolean')

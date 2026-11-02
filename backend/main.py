@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+import logging
 
 from fastapi import FastAPI, HTTPException, Query
 from psycopg import IntegrityError
@@ -38,7 +39,10 @@ async def lifespan(app: FastAPI):
     app.state.temporal_client = await connect()
     await ensure_daily_briefing_schedule(app.state.temporal_client, settings)
     await ensure_corpus_schedule(app.state.temporal_client, settings)
-    await ensure_knowledge_schedule(app.state.temporal_client, settings)
+    try:
+        await ensure_knowledge_schedule(app.state.temporal_client, settings)
+    except Exception:
+        logging.getLogger(__name__).exception('Optional knowledge schedule setup failed; core services remain available')
     yield
 
 
@@ -96,6 +100,11 @@ def index() -> FileResponse:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get('/api/features')
+def features() -> dict[str, bool]:
+    return {'knowledge': load_settings().knowledge_active}
 
 
 @app.get("/api/inbox")

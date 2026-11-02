@@ -95,8 +95,9 @@ def initialize_database(settings: Settings) -> None:
             cur.execute(SCHEMA)
             for statement in SCHEMA_STATEMENTS:
                 cur.execute(statement)
-            from backend.services.knowledge_schema import SCHEMA as KNOWLEDGE_SCHEMA
-            cur.execute(KNOWLEDGE_SCHEMA)
+            if settings.knowledge_active:
+                from backend.services.knowledge_schema import SCHEMA as KNOWLEDGE_SCHEMA
+                cur.execute(KNOWLEDGE_SCHEMA)
         conn.commit()
 
 

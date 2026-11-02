@@ -12,6 +12,13 @@ from backend.services.corpus_summary import installed_models
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
 
+def enabled_settings():
+    settings = load_settings()
+    if not settings.knowledge_active:
+        raise HTTPException(503, 'Knowledge is disabled. Set KNOWLEDGE_ENABLED=true and KNOWLEDGE_SERVICE_URL to enable it.')
+    return settings
+
+
 class KnowledgeQuery(BaseModel):
     query: str = Field(min_length=1, max_length=4000)
     mode: Literal['chunks', 'summary'] = 'chunks'
@@ -29,7 +36,7 @@ class KnowledgeQuery(BaseModel):
 
 @router.get('/models')
 def knowledge_models():
-    settings = load_settings()
+    settings = enabled_settings()
     try:
         installed = installed_models(settings)
         warning = None if settings.knowledge_model in installed else 'Configured default model is not installed. Select an installed text-generation model or install the default in Ollama.'
@@ -41,9 +48,7 @@ def knowledge_models():
 
 @router.post("/query")
 def query_knowledge(request: KnowledgeQuery):
-    settings = load_settings()
-    if not settings.knowledge_service_url:
-        raise HTTPException(503, "Set KNOWLEDGE_SERVICE_URL to enable shared retrieval")
+    settings = enabled_settings()
     if request.mode == 'summary' and request.model is not None:
         try:
             installed = installed_models(settings)

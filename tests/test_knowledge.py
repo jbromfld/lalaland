@@ -11,6 +11,13 @@ from backend.services import knowledge
 from backend.services import corpus_store
 
 
+@pytest.fixture
+def settings(settings):
+    settings = replace(settings, knowledge_enabled=True, knowledge_service_url='http://retrieval.test')
+    initialize_database(settings)
+    return settings
+
+
 def rss(conn, text='A short VLM summary.'):
     return conn.execute("""INSERT INTO inbox_entries(source_name,title,canonical_url,article_url,summary)
         VALUES ('Feed','VLM','https://example.org/vlm','https://example.org/vlm',%s) RETURNING id""", (text,)).fetchone()['id']
@@ -85,7 +92,7 @@ def test_disabled_sync_does_not_open_database(monkeypatch):
 def test_query_forwards_scoped_results(monkeypatch):
     from backend import knowledge_api
     from backend.config import Settings
-    monkeypatch.setattr(knowledge_api, 'load_settings', lambda: replace(Settings(), knowledge_service_url='http://retrieval.test'))
+    monkeypatch.setattr(knowledge_api, 'load_settings', lambda: replace(Settings(), knowledge_enabled=True, knowledge_service_url='http://retrieval.test'))
     response = Mock()
     response.json.return_value = {'chunks':[{'score':0.0001, 'citation':'[1]'}]}
     post = Mock(return_value=response)
@@ -122,13 +129,17 @@ async def test_sync_workflow():
 
 
 @pytest.mark.asyncio
-async def test_sync_schedule_disabled_without_url():
+@pytest.mark.parametrize('enabled,url', [(False, ''), (False, 'http://retrieval.test'), (True, '')])
+async def test_sync_schedule_disabled_without_url(enabled, url):
+    from unittest.mock import AsyncMock
     from backend.config import Settings
     from backend.temporal.client import ensure_knowledge_schedule
 
+    handle = Mock(pause=AsyncMock())
     client = Mock()
-    await ensure_knowledge_schedule(client, Settings())
-    client.get_schedule_handle.assert_not_called()
+    client.get_schedule_handle.return_value = handle
+    await ensure_knowledge_schedule(client, replace(Settings(), knowledge_enabled=enabled, knowledge_service_url=url))
+    handle.pause.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -150,7 +161,7 @@ async def test_sync_schedule_creates_or_updates_daily_schedule(exists, overrides
     if not exists:
         handle.describe.side_effect = RPCError('missing', RPCStatusCode.NOT_FOUND, b'')
     client.get_schedule_handle.return_value = handle
-    await ensure_knowledge_schedule(client, replace(Settings(), knowledge_service_url='http://retrieval.test', **overrides))
+    await ensure_knowledge_schedule(client, replace(Settings(), knowledge_enabled=True, knowledge_service_url='http://retrieval.test', **overrides))
     client.get_schedule_handle.assert_called_once_with('knowledge-sync-schedule')
     if exists:
         schedule = handle.update.call_args.args[0](None).schedule
@@ -177,5 +188,5 @@ async def test_sync_schedule_rejects_invalid_time(overrides):
 
     client = Mock()
     with pytest.raises(ValueError, match='Invalid knowledge sync schedule'):
-        await ensure_knowledge_schedule(client, replace(Settings(), knowledge_service_url='http://retrieval.test', **overrides))
+        await ensure_knowledge_schedule(client, replace(Settings(), knowledge_enabled=True, knowledge_service_url='http://retrieval.test', **overrides))
     client.get_schedule_handle.assert_not_called()

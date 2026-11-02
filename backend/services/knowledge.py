@@ -39,6 +39,8 @@ def documents(conn, kind, source_id):
 
 def backfill(settings):
     """Queue current records transactionally, including reviewed RSS/corpus records."""
+    if not settings.knowledge_active:
+        return
     with get_connection(settings) as conn:
         for kind, table in (("rss", "inbox_entries"), ("corpus", "corpus_articles")):
             conn.execute(f"""INSERT INTO knowledge_outbox(kind,source_id)
@@ -47,7 +49,7 @@ def backfill(settings):
 
 
 def drain(settings, limit=25):
-    if not settings.knowledge_service_url:
+    if not settings.knowledge_active:
         return {"enabled": False, "indexed": 0, "failed": 0}
     indexed = failed = 0
     with get_connection(settings) as conn:
@@ -94,6 +96,9 @@ def main():
     if args.limit < 1:
         parser.error("--limit must be positive")
     settings = load_settings()
+    if not settings.knowledge_active:
+        print(json.dumps({'enabled': False, 'detail': 'Set KNOWLEDGE_ENABLED=true and KNOWLEDGE_SERVICE_URL to enable knowledge.'}))
+        return
     initialize_database(settings)
     if args.command == "backfill":
         backfill(settings)

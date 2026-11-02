@@ -31,6 +31,8 @@ model selection.
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |
 | `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout per call | `900` |
 | `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
+| `KNOWLEDGE_ENABLED` | Opt in to Lassy knowledge sync, search, and LA-3 | `false` |
+| `KNOWLEDGE_SERVICE_URL` | Lassy base URL; required when enabling knowledge | unset |
 | `KNOWLEDGE_SCHEDULE_HOUR` / `KNOWLEDGE_SCHEDULE_MINUTE` | Daily knowledge sync start | `7` / `0` |
 | `KNOWLEDGE_SCHEDULE_TIMEZONE` | Knowledge sync timezone | `America/Detroit` |
 | `KNOWLEDGE_MODEL` | LA-3 knowledge answer model (UI default) | `granite4.2:3b` |
@@ -50,7 +52,8 @@ and end hours must fall on the same day, with end after start. Keep both corpus
 inference timeouts below the worker's 1,200-second heartbeat interval.
 
 Knowledge sync runs daily at 07:00 America/Detroit by default when
-`KNOWLEDGE_SERVICE_URL` is configured. Set its hour (0–23), minute (0–59), and IANA
+`KNOWLEDGE_ENABLED=true` and `KNOWLEDGE_SERVICE_URL` are configured on backend and
+worker. Set its hour (0–23), minute (0–59), and IANA
 timezone in `Settings` or through the environment variables above. Restart the
 backend to update an existing `knowledge-sync-schedule`, including the previous
 one-minute interval.

@@ -100,6 +100,8 @@
       color: #082f49;
     }
 
+    .nav-button[hidden] { display: none; }
+
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -362,7 +364,7 @@
           <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
           <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
           <button class="nav-button" type="button" data-view-target="search-view">Search</button>
-          <button class="nav-button" type="button" data-view-target="knowledge-view">Knowledge</button>
+          <button class="nav-button" type="button" data-view-target="knowledge-view" hidden>Knowledge</button>
         </nav>
 
         <div class="actions">
@@ -911,6 +913,9 @@
     });
 
     const knowledgeModel = document.getElementById('knowledge-model');
+    api('/api/features').then(features => {
+      document.querySelector('[data-view-target="knowledge-view"]').hidden = !features.knowledge;
+    }).catch(() => {});
     async function loadKnowledgeModels() {
       try {
         const data = await api('/api/knowledge/models');
