@@ -31,7 +31,12 @@ docker compose exec backend python -m backend.services.knowledge backfill
 docker compose exec backend python -m backend.services.knowledge status
 ```
 
-`knowledge-sync-schedule` runs every minute and delivers up to five source records
+`knowledge-sync-schedule` runs daily at 07:00 America/Detroit by default. Configure
+`knowledge_schedule_hour`, `knowledge_schedule_minute`, and
+`knowledge_schedule_timezone` in `backend/config.py`, or override them with
+`KNOWLEDGE_SCHEDULE_HOUR`, `KNOWLEDGE_SCHEDULE_MINUTE`, and
+`KNOWLEDGE_SCHEDULE_TIMEZONE`. Backend startup updates the existing schedule.
+It delivers up to five source records
 per run; overlapping runs are skipped. Each corpus record can publish both its
 original text and briefing. Database triggers queue inserts, content changes and
 deletes atomically with the source transaction. Review/rating changes do not

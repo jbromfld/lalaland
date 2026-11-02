@@ -8,7 +8,7 @@ from backend.temporal.client import temporal_address, temporal_namespace
 
 def test_missing_environment_uses_settings_defaults(monkeypatch):
     for name in list(os.environ):
-        if name.startswith(('OLLAMA_', 'CORPUS_', 'SCHEDULE_', 'TEMPORAL_')) or name in (
+        if name.startswith(('OLLAMA_', 'CORPUS_', 'SCHEDULE_', 'TEMPORAL_', 'KNOWLEDGE_')) or name in (
             'DATABASE_URL', 'APP_TITLE', 'OTEL_SERVICE_NAME'
         ):
             monkeypatch.delenv(name)
@@ -20,6 +20,9 @@ def test_missing_environment_uses_settings_defaults(monkeypatch):
     ('OLLAMA_MODEL', 'ollama_model', 'rss-custom', 'rss-custom'),
     ('CORPUS_MODEL', 'corpus_model', 'research-custom', 'research-custom'),
     ('SCHEDULE_HOUR', 'schedule_hour', '8', 8),
+    ('KNOWLEDGE_SCHEDULE_HOUR', 'knowledge_schedule_hour', '9', 9),
+    ('KNOWLEDGE_SCHEDULE_MINUTE', 'knowledge_schedule_minute', '30', 30),
+    ('KNOWLEDGE_SCHEDULE_TIMEZONE', 'knowledge_schedule_timezone', 'UTC', 'UTC'),
     ('CORPUS_FINAL_TIMEOUT_SECONDS', 'corpus_final_timeout_seconds', '600', 600),
 ])
 def test_environment_overrides_keep_field_types(monkeypatch, name, field, value, expected):

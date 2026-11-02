@@ -28,6 +28,9 @@ class Settings:
     corpus_schedule_timezone: str = "America/Detroit"
     knowledge_service_url: str = ""
     knowledge_timeout_seconds: int = 120
+    knowledge_schedule_hour: int = 7
+    knowledge_schedule_minute: int = 0
+    knowledge_schedule_timezone: str = "America/Detroit"
     temporal_address: str = "host.docker.internal:30733"
     temporal_namespace: str = "lalaland"
 
@@ -54,6 +57,9 @@ def load_settings() -> Settings:
         defaults,
         knowledge_service_url=os.getenv("KNOWLEDGE_SERVICE_URL", defaults.knowledge_service_url).rstrip("/"),
         knowledge_timeout_seconds=int(os.getenv("KNOWLEDGE_TIMEOUT_SECONDS", str(defaults.knowledge_timeout_seconds))),
+        knowledge_schedule_hour=int(os.getenv("KNOWLEDGE_SCHEDULE_HOUR", str(defaults.knowledge_schedule_hour))),
+        knowledge_schedule_minute=int(os.getenv("KNOWLEDGE_SCHEDULE_MINUTE", str(defaults.knowledge_schedule_minute))),
+        knowledge_schedule_timezone=os.getenv("KNOWLEDGE_SCHEDULE_TIMEZONE", defaults.knowledge_schedule_timezone),
         database_url=os.getenv("DATABASE_URL", defaults.database_url),
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", defaults.ollama_base_url),
         ollama_model=os.getenv("OLLAMA_MODEL", defaults.ollama_model),

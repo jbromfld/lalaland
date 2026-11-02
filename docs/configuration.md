@@ -31,6 +31,8 @@ model selection.
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |
 | `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout per call | `900` |
 | `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
+| `KNOWLEDGE_SCHEDULE_HOUR` / `KNOWLEDGE_SCHEDULE_MINUTE` | Daily knowledge sync start | `7` / `0` |
+| `KNOWLEDGE_SCHEDULE_TIMEZONE` | Knowledge sync timezone | `America/Detroit` |
 | `TEMPORAL_ADDRESS` | Temporal endpoint | `host.docker.internal:30733` |
 | `TEMPORAL_NAMESPACE` | Temporal namespace | `lalaland` |
 
@@ -43,5 +45,11 @@ changing its environment settings does not update an existing schedule.
 LA-2 uses its explicit timezone and updates its own schedule at startup. Its start
 and end hours must fall on the same day, with end after start. Keep both corpus
 inference timeouts below the worker's 1,200-second heartbeat interval.
+
+Knowledge sync runs daily at 07:00 America/Detroit by default when
+`KNOWLEDGE_SERVICE_URL` is configured. Set its hour (0–23), minute (0–59), and IANA
+timezone in `Settings` or through the environment variables above. Restart the
+backend to update an existing `knowledge-sync-schedule`, including the previous
+one-minute interval.
 
 See [trusted domains and quarantine](agents.md#trusted-domains-quarantine-and-deletion) for the download policy and release procedure, and [shared retrieval](knowledge.md) for `KNOWLEDGE_SERVICE_URL` and delivery settings.

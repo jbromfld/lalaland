@@ -87,17 +87,19 @@ async def ensure_corpus_schedule(client: Client, settings: Settings) -> None:
 
 
 async def ensure_knowledge_schedule(client: Client, settings: Settings) -> None:
-    from datetime import timedelta
-    from temporalio.client import ScheduleIntervalSpec
     from .knowledge import KnowledgeSyncWorkflow
     if not settings.knowledge_service_url:
         # An existing schedule safely no-ops because the activity checks configuration.
         return
+    if not (0 <= settings.knowledge_schedule_hour <= 23 and 0 <= settings.knowledge_schedule_minute <= 59):
+        raise ValueError('Invalid knowledge sync schedule hour or minute')
     handle = client.get_schedule_handle('knowledge-sync-schedule')
     schedule = Schedule(
         action=ScheduleActionStartWorkflow(KnowledgeSyncWorkflow.run,
             id='knowledge-sync-workflow', task_queue=TASK_QUEUE),
-        spec=ScheduleSpec(intervals=[ScheduleIntervalSpec(every=timedelta(minutes=1))]),
+        spec=ScheduleSpec(
+            cron_expressions=[f'{settings.knowledge_schedule_minute} {settings.knowledge_schedule_hour} * * *'],
+            time_zone_name=settings.knowledge_schedule_timezone),
         policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP))
     try:
         await handle.describe()
