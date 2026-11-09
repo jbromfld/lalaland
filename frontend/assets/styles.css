@@ -411,15 +411,14 @@ a {
 .corpus-briefing { max-width: 68ch; margin: 0 auto; }
 .corpus-briefing-section { padding: 24px 0; border-top: 1px solid #293b53; }
 .corpus-briefing-section h3 { display: flex; gap: 12px; align-items: baseline; margin: 0 0 14px; color: #f1f5f9; font-size: 1.1rem; line-height: 1.5; }
-.corpus-section-number { color: #7c95b6; font-size: 0.75rem; font-weight: 500; }
 .corpus-briefing-copy { color: #d9e2ef; font-size: 1rem; line-height: 1.85; }
-.corpus-briefing-copy p { margin: 0 0 1em; white-space: pre-line; }
+.corpus-briefing-copy p { margin: 0 0 1em; white-space: normal; }
 .corpus-briefing-copy p:last-child { margin-bottom: 0; }
 .corpus-takeaway { border: 0; border-left: 3px solid #38bdf8; background: #182e46; border-radius: 0 12px 12px 0; padding: 22px; margin-bottom: 12px; }
 .corpus-takeaway h3 { color: #bae6fd; }
-.corpus-glossary { border-top: 1px solid #293b53; padding: 18px 0; }
-.corpus-glossary summary { color: #cbd5e1; font-size: 0.95rem; font-weight: 600; }
-.corpus-glossary .corpus-briefing-copy { margin-top: 14px; }
+.corpus-glossary, .corpus-experiment { border-top: 1px solid #293b53; padding: 18px 0; }
+.corpus-glossary summary, .corpus-experiment summary { color: #cbd5e1; font-size: 0.95rem; font-weight: 600; }
+.corpus-glossary .corpus-briefing-copy, .corpus-experiment .corpus-briefing-copy { margin-top: 14px; }
 .corpus-review { max-width: 68ch; margin: 22px auto 0; padding: 24px 0; border-top: 1px solid #34465f; display: flex; gap: 20px; justify-content: space-between; flex-wrap: wrap; align-items: center; }
 .corpus-review h3 { margin: 0 0 5px; font-size: 1rem; }
 .corpus-review p { margin: 0; }
@@ -445,3 +444,21 @@ a {
   .corpus-takeaway { padding: 18px; }
   .corpus-pagination { gap: 6px; }
 }
+
+/* Markdown is rendered locally; prose remains the primary reading surface. */
+.corpus-briefing-copy :is(ul, ol) { padding-left: 1.5em; margin: 0 0 1.2em; }
+.corpus-briefing-copy li { margin: 0.4em 0; padding-left: 0.15em; }
+.corpus-briefing-copy li :is(ul, ol) { margin: 0.4em 0; }
+.corpus-briefing-copy li p { margin: 0.5em 0; }
+.corpus-briefing-copy strong { color: #f1f5f9; font-weight: 650; }
+.corpus-briefing-copy :is(h4, h5, h6) { color: #f1f5f9; line-height: 1.5; margin: 1.5em 0 0.65em; font-size: 1rem; }
+.corpus-briefing-copy code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.86em; padding: 0.15em 0.35em; background: #24344a; border-radius: 4px; overflow-wrap: anywhere; }
+.corpus-briefing-copy pre { max-width: 100%; overflow-x: auto; padding: 18px; background: #0b1422; border: 1px solid #2b3c53; border-radius: 10px; line-height: 1.65; white-space: pre; }
+.corpus-briefing-copy pre code { background: none; padding: 0; overflow-wrap: normal; }
+.corpus-briefing-copy blockquote { margin: 1.2em 0; padding: 4px 0 4px 18px; border-left: 3px solid #577494; color: #b9c9dd; }
+.corpus-briefing-copy a { color: #7dd3fc; text-underline-offset: 3px; }
+.corpus-briefing-copy hr { border: 0; border-top: 1px solid #34465f; margin: 1.5em 0; }
+.corpus-briefing-copy table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1em 0; font-size: 0.9rem; }
+.corpus-briefing-copy :is(th, td) { padding: 10px 14px; border: 1px solid #34465f; text-align: left; vertical-align: top; }
+.corpus-experiment summary { color: #a2b2c8; font-weight: 500; }
+.corpus-experiment .corpus-briefing-copy { font-size: 0.92rem; }

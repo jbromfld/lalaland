@@ -36,6 +36,16 @@ packages or bundler are required. Check JavaScript syntax with:
 for file in frontend/assets/*.js; do node --input-type=module --check < "$file"; done
 ```
 
+Corpus Markdown uses pinned local Marked and DOMPurify modules in
+`frontend/assets/vendor/`; versions, licenses, and update instructions are kept
+beside them. Optional formatting/security tests use jsdom installed outside the
+repository, with no frontend build step:
+
+```bash
+npm install --prefix /tmp/lalaland-dom-tests --no-audit --no-fund jsdom@26
+NODE_PATH=/tmp/lalaland-dom-tests/node_modules node --experimental-vm-modules --test tests/test_markdown.mjs
+```
+
 Verify pagination, mark-read followed by rating in Search, manual-job startup,
 and corpus progress updates after UI changes. Polling pauses in hidden tabs and
 preserves focused controls during status updates. Both FastAPI and the frontend

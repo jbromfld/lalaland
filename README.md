@@ -3,7 +3,7 @@
 Three local research agents with a shared browser dashboard; LA-3 is optional:
 
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
-- **LA-2 — Research corpus:** queues paper/article URLs and produces engineering deep dives from extracted full text.
+- **LA-2 — Research corpus:** queues paper/article URLs and produces readable summaries, key takeaways, real-world use cases, and practical uses from extracted full text.
 - **LA-3 — Knowledge assistant (optional):** searches indexed RSS summaries and corpus research, returning evidence chunks or a synthesized answer with citations.
 
 The platform uses Ollama for inference, Temporal for durable background processing,

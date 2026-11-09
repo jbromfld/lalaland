@@ -1,4 +1,5 @@
 import { api, escapeHtml, safeUrl, renderHtml } from './shared.js';
+import { renderMarkdown } from './markdown.js';
 
 export function initCorpus() {
   const corpusStatus = document.getElementById('corpus-status');
@@ -77,16 +78,26 @@ export function initCorpus() {
     updateSelection();
   }
   function briefingMarkup(briefing) {
-    const headings = ['Takeaway', 'How it works', 'Evidence and limitations', 'Engineering relevance',
-      'Adoption and tradeoffs', 'Practical experiment', 'Glossary and references'];
-    const keys = [...headings.filter(key => key in briefing), ...Object.keys(briefing).filter(key => !headings.includes(key))];
-    return keys.map((heading, index) => {
-      const paragraphs = String(briefing[heading]).split(/\n\s*\n/).filter(part => part.trim())
-        .map(part => `<p>${escapeHtml(part)}</p>`).join('');
-      if (heading === 'Glossary and references') return `<details class="corpus-glossary"><summary>Glossary and references</summary><div class="corpus-briefing-copy">${paragraphs}</div></details>`;
-      return `<section class="corpus-briefing-section ${heading === 'Takeaway' ? 'corpus-takeaway' : ''}">
-        <h3><span class="corpus-section-number" aria-hidden="true">${String(index + 1).padStart(2, '0')}</span>${escapeHtml(heading)}</h3>
-        <div class="corpus-briefing-copy">${paragraphs}</div></section>`;
+    // Keep stored keys compatible while giving both old and new briefings a
+    // reader-focused order. The optional experiment always comes last.
+    const sections = [
+      ['Takeaway', 'Summary and key takeaways'],
+      ['How it works', 'How it works'],
+      ['Engineering relevance', 'Real-world use cases'],
+      ['Adoption and tradeoffs', 'Practical uses and tradeoffs'],
+      ['Evidence and limitations', 'Evidence and limitations'],
+      ['Glossary and references', 'Glossary and references']
+    ];
+    const known = new Set([...sections.map(([key]) => key), 'Practical experiment']);
+    sections.push(...Object.keys(briefing).filter(key => !known.has(key)).map(key => [key, key]));
+    sections.push(['Practical experiment', 'Practical experiment (optional)']);
+    return sections.filter(([key]) => key in briefing).map(([key, title]) => {
+      const content = `<div class="corpus-briefing-copy">${renderMarkdown(briefing[key])}</div>`;
+      if (key === 'Glossary and references' || key === 'Practical experiment') {
+        return `<details class="${key === 'Practical experiment' ? 'corpus-experiment' : 'corpus-glossary'}"><summary>${escapeHtml(title)}</summary>${content}</details>`;
+      }
+      return `<section class="corpus-briefing-section ${key === 'Takeaway' ? 'corpus-takeaway' : ''}">
+        <h3>${escapeHtml(title)}</h3>${content}</section>`;
     }).join('');
   }
   function processingMarkup(item) {

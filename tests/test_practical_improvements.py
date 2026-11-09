@@ -242,10 +242,11 @@ def test_malformed_retrieval_response_is_gateway_error(monkeypatch, body):
 def test_static_modules_available_without_starting_services():
     client = TestClient(main.app)
     assert '/static/assets/app.js' in client.get('/').text
-    for name in ('app.js','rss.js','corpus.js','knowledge.js','shared.js','styles.css'):
+    for name in ('app.js','rss.js','corpus.js','knowledge.js','shared.js','markdown.js',
+                 'vendor/marked.esm.js','vendor/purify.es.js','styles.css'):
         response = client.get('/static/assets/'+name)
         assert response.status_code == 200
-        assert 'javascript' in response.headers['content-type'] if name.endswith('.js') else 'text/css' in response.headers['content-type']
+        assert 'javascript' in response.headers['content-type'] if name.endswith(('.js', '.mjs')) else 'text/css' in response.headers['content-type']
 
 
 def test_condensation_is_checkpointed_across_deferral(settings, monkeypatch):

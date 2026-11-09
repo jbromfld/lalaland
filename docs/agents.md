@@ -52,13 +52,26 @@ Open **Corpus** and submit a URL such as
 not immediately start inference. The worker extracts the article, creates evidence
 notes from bounded chunks, condenses those notes, and writes a structured briefing.
 
-Briefings are written for a DevOps/AIOps engineer:
+Briefings prioritize understanding the content and putting its ideas to use:
 
-- A plain-English takeaway, the problem being solved, and how the approach works.
-- Experimental evidence, conditions, and limitations, with page/section references.
-- Implications for deployment, cost, latency, reliability, observability, and customer integration.
-- Adoption requirements, operational tradeoffs, and a small measurable experiment.
-- Essential terminology, with paper findings distinguished from suggested engineering applications.
+- A plain-language content summary and 3–5 key takeaways.
+- A concise explanation of how the central idea works.
+- Concrete real-world use cases: who benefits and when the ideas apply.
+- Practical uses in everyday work, decisions, or tools, with relevant tradeoffs.
+- Supporting evidence, limitations, and brief terminology or source references.
+
+The optional **Practical experiment** comes last and is limited to 60 words and
+1–2 bullets in new generations. It is collapsed in the reader, so the article's
+summary and applications stay prominent. DevOps/AIOps examples are included when
+relevant, rather than making every paper an infrastructure project.
+
+Section text supports Markdown paragraphs, lists, emphasis, links, quotes, code,
+and tables. Markdown is parsed and sanitized locally; no CDN is needed. Existing
+briefings retain their stored content but use the new display labels and order.
+Newly generated briefings use the revised emphasis. The saved JSON section keys
+remain compatible: `Takeaway` displays as **Summary and key takeaways**,
+`Engineering relevance` as **Real-world use cases**, and `Adoption and tradeoffs`
+as **Practical uses and tradeoffs**.
 
 The model selector lists models installed on the configured Ollama server.
 **Configured default** uses `CORPUS_MODEL`. The selected model is saved with the
