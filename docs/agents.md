@@ -11,21 +11,24 @@ Run commands from the repository root unless stated otherwise.
 | Output | A concise 2–4 sentence briefing | An engineering briefing targeting 800–1,200 words |
 | Model setting | `OLLAMA_MODEL` | `CORPUS_MODEL`, with optional per-article selection |
 | Scheduled processing | Daily briefing schedule | Overnight batch, default 03:00–05:00 America/Detroit |
-| Manual processing | **Run now** starts the daily briefing workflow | **Run queued articles now** starts a corpus batch |
+| Manual processing | **Pull latest** starts the daily briefing workflow | **Run queued articles now** starts a corpus batch |
 | Review | Read, rate 1–5, or dismiss | Read or rate 1–5 |
 | Search | Historical inbox search | Full-text corpus search, including reviewed articles |
 
 ## LA-1: RSS briefing
 
-Configure feeds in **Sources**, then review new summaries in **Inbox**. The daily
-workflow polls enabled sources, discovers recently published entries, removes
+Choose **Add source** in **Sources** to configure a feed. Tags and processing
+priority are under optional settings; **Edit** reopens the source form. Paused
+feeds stay saved but are excluded from pulls. Review new summaries in **Inbox**.
+The daily workflow polls enabled sources, discovers recently published entries, removes
 tracking parameters from URLs, and skips URLs already saved. It summarizes the
 text supplied by the feed; it does not download and read the full linked paper.
 
 **Mark read**, rating an entry, or dismissing it removes it from the active inbox.
 The **Search** navigation view still finds those entries by keyword, source,
 date range, and rating, and lets you rate previously read entries. Inbox and
-historical results use pages of 50 records by default. Feed text is transient;
+historical results use pages of 50 records by default. Search filters are under
+**Filters**; applied filters appear as removable chips. Feed text is transient;
 source configuration, generated summaries, URLs, timestamps, and review state
 remain in Postgres.
 
@@ -41,7 +44,7 @@ Downloads use destination pinning, a 5 MiB size bound, five redirects, and a
 30-second download budget with socket timeouts. Redirect destinations are checked
 before connecting; file paths and unsupported schemes are rejected.
 
-The RSS **Run now** action starts a background manual run and returns immediately.
+The Inbox **Pull latest** action starts a background manual run and returns immediately.
 Repeated clicks reuse the active manual run. The dashboard polls its status and
 reports completed/skipped source counts; a worker must be running to process it.
 

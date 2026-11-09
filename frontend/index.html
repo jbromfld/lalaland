@@ -9,47 +9,43 @@
 <body>
   <main>
     <div class="app-shell">
-      <aside class="panel sidebar">
-        <div>
-          <h1>Daily Research Briefing</h1>
-          <div class="headline">
-            <p>Manage sources and review summaries in one place.</p>
-            <span class="count-pill" id="inbox-count">0</span>
-          </div>
-        </div>
-
-        <nav class="nav-list">
+      <aside class="sidebar">
+        <div class="brand"><h1>Lalaland</h1><p>Your research library.</p></div>
+        <nav class="nav-list" aria-label="Main navigation">
+          <button class="nav-button is-active" type="button" data-view-target="inbox-view" aria-current="page">Inbox <span id="inbox-nav-count" class="nav-count">0</span></button>
           <button class="nav-button" type="button" data-view-target="corpus-view">Corpus</button>
-          <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
-          <button class="nav-button is-active" type="button" data-view-target="inbox-view">Inbox <span id="inbox-nav-count">(0)</span></button>
-          <button class="nav-button" type="button" data-view-target="search-view">Search</button>
           <button class="nav-button" type="button" data-view-target="knowledge-view" hidden>Knowledge</button>
+          <button class="nav-button" type="button" data-view-target="search-view">Search</button>
+          <div class="nav-divider" aria-hidden="true"></div>
+          <button class="nav-button" type="button" data-view-target="sources-view">Sources</button>
         </nav>
-
-        <div class="actions">
-          <button class="primary" id="run-button" type="button">Run daily pull now</button>
-        </div>
-
-        <div id="status" role="status" aria-live="polite"></div>
       </aside>
 
       <section class="content">
+        <p id="status" class="notice" role="status" aria-live="polite"></p>
         <section class="panel view" id="knowledge-view">
-          <div class="view-header"><div><h2>Knowledge search</h2><p>Search indexed RSS summaries and corpus research, or ask for an answer with sources.</p></div></div>
-          <form id="knowledge-form">
-            <label>Question <input id="knowledge-query" type="search" required maxlength="4000" placeholder="What does the research say about vision-language models?" /></label>
-            <div class="form-grid knowledge-options">
-              <label>Return <select id="knowledge-mode"><option value="chunks">Chunks</option><option value="summary">Synthesized summary</option></select></label>
-              <label>Sources <select id="knowledge-collection"><option value="all">RSS and corpus</option><option value="lalaland-rss">RSS summaries</option><option value="lalaland-corpus">Corpus research</option></select></label>
-              <label>Maximum chunks <input id="knowledge-top-k" type="number" min="1" max="100" value="5" required /></label>
+          <header class="view-header page-header"><div><p class="page-kicker">From your saved research</p><h2>Knowledge</h2><p>Ask a question, explore the evidence, and connect what you’ve read.</p></div></header>
+          <form id="knowledge-form" class="question-form">
+            <label for="knowledge-query">What would you like to understand?</label>
+            <textarea id="knowledge-query" rows="3" required maxlength="4000" placeholder="What does the research say about vision-language models?"></textarea>
+            <div class="question-controls">
+              <div class="segmented-control" role="group" aria-label="Response format">
+                <button type="button" data-knowledge-mode="summary" aria-pressed="true">Answer</button>
+                <button type="button" data-knowledge-mode="chunks" aria-pressed="false">Source excerpts</button>
+              </div>
+              <input id="knowledge-mode" type="hidden" value="summary" />
+              <label class="inline-label">Sources <select id="knowledge-collection"><option value="all">RSS and corpus</option><option value="lalaland-rss">RSS summaries</option><option value="lalaland-corpus">Corpus articles</option></select></label>
             </div>
-            <label>Summary model <select id="knowledge-model" disabled><option value="">Configured default</option></select></label>
-            <button class="primary" id="knowledge-submit" type="submit">Search knowledge</button>
+            <details class="advanced-options"><summary>Search options</summary><div class="form-grid">
+              <label>Maximum excerpts <input id="knowledge-top-k" type="number" min="1" max="100" value="5" required /></label>
+              <label>Answer model <select id="knowledge-model"><option value="">Configured default</option></select></label>
+            </div></details>
+            <div class="actions"><button class="primary" id="knowledge-submit" type="submit">Ask knowledge</button></div>
           </form>
-          <p id="knowledge-model-status" role="status"></p>
-          <p id="knowledge-status" role="status" aria-live="polite"></p>
-          <article id="knowledge-answer" hidden><h3>Synthesized answer</h3><div class="summary" id="knowledge-summary"></div><p class="meta" id="knowledge-agent"></p></article>
-          <div class="grid" id="knowledge-results"></div>
+          <p id="knowledge-model-status" class="notice notice-warning" role="status"></p>
+          <p id="knowledge-status" class="status-line" role="status" aria-live="polite"></p>
+          <article id="knowledge-answer" class="answer-reading" aria-labelledby="knowledge-answer-title" hidden><p class="page-kicker">From the evidence</p><h3 id="knowledge-answer-title">Answer</h3><div class="corpus-briefing-copy" id="knowledge-summary"></div><p class="meta answer-attribution" id="knowledge-agent"></p></article>
+          <details id="knowledge-evidence" class="evidence-panel" hidden><summary id="knowledge-evidence-title">Sources and excerpts</summary><div class="reading-list" id="knowledge-results"></div></details>
         </section>
         <section class="panel view" id="corpus-view">
           <header class="view-header corpus-header">
@@ -97,104 +93,46 @@
         </section>
 
         <section class="panel view" id="sources-view">
-          <div class="view-header">
-            <div>
-              <h2>Research sources</h2>
-              <p>Add and manage the feeds used for daily briefings.</p>
-            </div>
-          </div>
-
-          <form id="source-form">
-            <input id="source-id" type="hidden" />
-            <div class="form-grid">
-              <label>
-                Name
-                <input id="source-name" name="name" type="text" required />
-              </label>
-              <label>
-                Tags
-                <input id="source-tags" name="tags" type="text" placeholder="lab, AI, CSP" />
-              </label>
-              <label>
-                Feed URL
-                <input id="source-feed-url" name="feed_url" type="url" required />
-              </label>
-              <label>
-                Weight
-                <input id="source-weight" name="source_weight" type="number" min="0" value="1" required />
-              </label>
-            </div>
-            <label class="checkbox">
-              <input id="source-enabled" name="enabled" type="checkbox" checked />
-              Enabled
-            </label>
-            <div class="actions">
-              <button class="primary" id="source-submit" type="submit">Add source</button>
-              <button class="ghost" id="source-cancel" type="button" hidden>Cancel edit</button>
-            </div>
-          </form>
-
+          <header class="view-header page-header"><div><p class="page-kicker">Choose what you follow</p><h2>Sources</h2><p>Manage the feeds that bring research into your inbox.</p></div><button class="primary" type="button" id="source-add">Add source</button></header>
+          <section id="source-editor" class="editor-panel" aria-labelledby="source-editor-title" hidden>
+            <h3 id="source-editor-title">Add a source</h3>
+            <form id="source-form">
+              <input id="source-id" type="hidden" />
+              <div class="form-grid">
+                <label>Name <input id="source-name" name="name" type="text" required /></label>
+                <label>Feed URL <input id="source-feed-url" name="feed_url" type="url" required placeholder="https://example.org/feed" /></label>
+              </div>
+              <details class="advanced-options"><summary>Tags and priority</summary><div class="form-grid">
+                <label>Tags <input id="source-tags" name="tags" type="text" placeholder="AI, systems, research" /></label>
+                <label>Priority <input id="source-weight" name="source_weight" type="number" min="0" value="1" required /><span class="hint">Higher numbers are processed first.</span></label>
+              </div></details>
+              <label class="checkbox"><input id="source-enabled" name="enabled" type="checkbox" checked />Include in daily pulls</label>
+              <div class="actions"><button class="primary" id="source-submit" type="submit">Add source</button><button class="ghost" id="source-cancel" type="button">Cancel</button></div>
+            </form>
+          </section>
           <div class="source-list" id="source-list"></div>
         </section>
 
         <section class="panel view is-active" id="inbox-view">
-          <div class="view-header">
-            <div>
-              <h2>Inbox</h2>
-              <p>Entries leave the inbox when you dismiss, mark read, or rate them.</p>
-            </div>
-          </div>
-
-          <div class="grid" id="research"></div>
-          <div class="actions"><button id="inbox-prev" type="button">Previous</button><span id="inbox-page" role="status"></span><button id="inbox-next" type="button">Next</button></div>
+          <header class="view-header page-header"><div><p class="page-kicker">Daily reading</p><h2>Inbox</h2><p>Short briefings from the sources you follow.</p></div><button class="primary" id="run-button" type="button">Pull latest</button></header>
+          <div class="reading-list" id="research"></div>
+          <nav class="pagination" aria-label="Inbox pages"><button class="ghost" id="inbox-prev" type="button" disabled>Previous</button><span id="inbox-page" role="status"></span><button class="ghost" id="inbox-next" type="button" disabled>Next</button></nav>
         </section>
 
         <section class="panel view" id="search-view">
-          <div class="view-header">
-            <div>
-              <h2>Search historical records</h2>
-              <p>Search saved summaries, including items already read, rated, or dismissed.</p>
-            </div>
-          </div>
-
+          <header class="view-header page-header"><div><p class="page-kicker">Find something worth revisiting</p><h2>Search your briefings</h2><p>Find saved RSS summaries, including those you’ve read, rated, or dismissed.</p></div></header>
           <form id="history-search-form">
-            <div class="form-grid">
-              <label>
-                Last n days
-                <input id="history-days" name="days" type="number" min="1" max="3650" placeholder="Any time" />
-              </label>
-              <label>
-                Source
-                <select id="history-source" name="source">
-                  <option value="">All sources</option>
-                </select>
-              </label>
-              <label>
-                Keyword
-                <input id="history-keyword" name="keyword" type="search" maxlength="200" placeholder="Title or summary" />
-              </label>
-              <label>
-                Rating
-                <select id="history-rating" name="rating">
-                  <option value="">Any rating</option>
-                  <option value="1">1 star</option>
-                  <option value="2">2 stars</option>
-                  <option value="3">3 stars</option>
-                  <option value="4">4 stars</option>
-                  <option value="5">5 stars</option>
-                </select>
-              </label>
-            </div>
-            <div class="actions">
-              <button class="primary" type="submit">Search</button>
-              <button class="ghost" id="history-search-clear" type="button">Clear</button>
-              <span id="history-search-status" role="status"></span>
-            </div>
+            <div class="search-row"><label class="sr-only" for="history-keyword">Search titles and summaries</label><input id="history-keyword" name="keyword" type="search" maxlength="200" placeholder="Search titles and summaries" /><button class="primary" type="submit">Search</button><button class="text-button" id="history-search-clear" type="button">Clear</button></div>
+            <details id="history-filters" class="advanced-options"><summary>Filters <span id="history-filter-count"></span></summary><div class="form-grid">
+              <label>Last (days) <input id="history-days" name="days" type="number" min="1" max="3650" placeholder="Any time" /></label>
+              <label>Source <select id="history-source" name="source"><option value="">All sources</option></select></label>
+              <label>Rating <select id="history-rating" name="rating"><option value="">Any rating</option><option value="1">1 / 5</option><option value="2">2 / 5</option><option value="3">3 / 5</option><option value="4">4 / 5</option><option value="5">5 / 5</option></select></label>
+            </div></details>
           </form>
-          <div class="grid" id="history-results">
-            <div class="empty">Choose filters and select Search to find saved records.</div>
-          </div>
-          <div class="actions"><button id="history-prev" type="button" disabled>Previous</button><span id="history-page" role="status"></span><button id="history-next" type="button" disabled>Next</button></div>
+          <div id="history-active-filters" class="filter-chips" aria-label="Active filters"></div>
+          <p id="history-search-status" class="status-line" role="status"></p>
+          <div class="reading-list" id="history-results"><div class="empty">Search for a topic, or leave the search blank to browse saved briefings.</div></div>
+          <nav class="pagination" aria-label="Search results pages"><button class="ghost" id="history-prev" type="button" disabled>Previous</button><span id="history-page" role="status"></span><button class="ghost" id="history-next" type="button" disabled>Next</button></nav>
         </section>
       </section>
     </div>

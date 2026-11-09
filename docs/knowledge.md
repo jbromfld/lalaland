@@ -89,10 +89,12 @@ curl http://127.0.0.1:8000/api/knowledge/query \
 both lalaland collections. Explicit collection filters can search other shared
 knowledge. Scores, citations and document identifiers pass through unchanged.
 The **Knowledge** dashboard tab searches both collections, with optional RSS or
-corpus filtering and a maximum chunk count. Choose **Chunks** to inspect retrieved
-excerpts, or **Synthesized summary** for a cited answer from LA-3. Its model dropdown
-lists installed Ollama models and defaults to `knowledge_model` in `backend/config.py`
-(`KNOWLEDGE_MODEL` overrides it). A selected model applies only to that request.
+corpus filtering. **Answer** is selected initially and produces a cited response
+from LA-3, displayed with the shared Markdown reader. Supporting excerpts are
+collapsed below the answer. Choose **Source excerpts** to inspect retrieval results
+without inference; those results open immediately. **Search options** contains the
+excerpt limit and model dropdown, which lists installed Ollama models and defaults
+to `knowledge_model` in `backend/config.py` (`KNOWLEDGE_MODEL` overrides it). A selected model applies only to that request.
 `KNOWLEDGE_AGENT_TIMEOUT_SECONDS` and `KNOWLEDGE_AGENT_INSTRUCTIONS` configure the
 third agent independently of the RSS and corpus agents; it uses the shared
 `OLLAMA_BASE_URL` and inference queue.

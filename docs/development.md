@@ -29,8 +29,10 @@ reinitialization and new connections; it does not restart running app services.
 
 ## Frontend checks
 
-The dashboard uses native ES modules and CSS under `frontend/assets/`; no Node
-packages or bundler are required. Check JavaScript syntax with:
+The dashboard uses native ES modules and CSS under `frontend/assets/`. Shared
+color, surface, spacing, and status tokens are defined on `:root` in `styles.css`;
+reuse them across views. The theme uses warm charcoal, soft text, and sage accents.
+No Node packages or bundler are required. Check JavaScript syntax with:
 
 ```bash
 for file in frontend/assets/*.js; do node --input-type=module --check < "$file"; done

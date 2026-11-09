@@ -70,7 +70,7 @@ export function renderHtml(node, html) {
 }
 
 export function setPagination(prefix, data) {
-  document.getElementById(`${prefix}-page`).textContent = `Page ${data.page} · ${data.total} records`;
+  document.getElementById(`${prefix}-page`).textContent = `Page ${data.page} of ${Math.max(1, Math.ceil(data.total / data.limit))}`;
   document.getElementById(`${prefix}-prev`).disabled = data.page <= 1;
   document.getElementById(`${prefix}-next`).disabled = data.page * data.limit >= data.total;
 }

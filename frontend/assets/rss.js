@@ -13,7 +13,6 @@ export function initRss() {
   const sourceEnabledInput = document.getElementById("source-enabled");
   const sourceSubmitButton = document.getElementById("source-submit");
   const sourceCancelButton = document.getElementById("source-cancel");
-  const inboxCountNode = document.getElementById("inbox-count");
   const inboxNavCountNode = document.getElementById("inbox-nav-count");
   const historySearchForm = document.getElementById("history-search-form");
   const historyDaysInput = document.getElementById("history-days");
@@ -31,14 +30,12 @@ export function initRss() {
   let currentJob = null, jobPollBusy = false;
 
   function renderEmptyInbox() {
-    inboxCountNode.textContent = "0";
-    inboxNavCountNode.textContent = "(0)";
+    inboxNavCountNode.textContent = "0";
     researchNode.innerHTML = '<div class="empty">No pending summaries right now.</div>';
   }
 
   function setInboxCount(count) {
-    inboxCountNode.textContent = String(count);
-    inboxNavCountNode.textContent = `(${count})`;
+    inboxNavCountNode.textContent = String(count);
   }
 
   function resetSourceForm() {
@@ -47,7 +44,8 @@ export function initRss() {
     sourceEnabledInput.checked = true;
     sourceWeightInput.value = "1";
     sourceSubmitButton.textContent = "Add source";
-    sourceCancelButton.hidden = true;
+    document.getElementById('source-editor').hidden = true;
+    document.getElementById('source-editor-title').textContent = 'Add a source';
   }
 
   function fillSourceForm(source) {
@@ -58,39 +56,41 @@ export function initRss() {
     sourceWeightInput.value = String(source.source_weight);
     sourceEnabledInput.checked = source.enabled;
     sourceSubmitButton.textContent = "Save changes";
-    sourceCancelButton.hidden = false;
+    document.getElementById('source-editor').hidden = false;
+    document.getElementById('source-editor-title').textContent = 'Edit source';
     sourceNameInput.focus();
   }
 
+  function displayHost(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); }
+    catch { return url; }
+  }
   function renderSources(sources) {
     sourcesCache = sources;
     if (!sources.length) {
-      sourceListNode.innerHTML = '<div class="empty">No sources configured yet.</div>';
+      sourceListNode.innerHTML = '<div class="empty"><strong>Choose your first source.</strong><p>Add an RSS feed to start receiving briefings.</p></div>';
       return;
     }
-
-    sourceListNode.innerHTML = sources.map((source) => `
-      <article class="source-card ${source.enabled ? "" : "disabled"}">
-        <div class="card-top">
-          <div>
-            <strong>${escapeHtml(source.name)}</strong>
-            <div class="source-meta">
-              <span class="tag">weight ${escapeHtml(source.source_weight)}</span>
-              <span class="tag">${source.enabled ? "enabled" : "disabled"}</span>
-              ${(source.tags || []).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}
-              ${source.last_polled_at ? `<span class="tag">last pull ${escapeHtml(new Date(source.last_polled_at).toLocaleString())}</span>` : ""}
-            </div>
+    renderHtml(sourceListNode, sources.map(source => `
+      <article class="source-row">
+        <div class="source-details"><h3>${escapeHtml(source.name)}<span class="status-badge" data-tone="${source.enabled ? 'ready' : 'muted'}">${source.enabled ? 'Enabled' : 'Paused'}</span></h3>
+          <div class="source-meta"><a href="${escapeHtml(safeUrl(source.feed_url))}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(source.feed_url)}">${escapeHtml(displayHost(source.feed_url))}</a>
+            <span>${source.last_polled_at ? `Last pull ${escapeHtml(new Date(source.last_polled_at).toLocaleDateString())}` : 'Not pulled yet'}</span>
           </div>
-          <div class="actions">
-            <button class="ghost" type="button" data-source-action="edit" data-id="${source.id}">Edit</button>
-            <button class="ghost" type="button" data-source-action="toggle" data-id="${source.id}">${source.enabled ? "Disable" : "Enable"}</button>
-            <button class="ghost" type="button" data-source-action="delete" data-id="${source.id}">Delete</button>
-          </div>
+          ${source.tags?.length ? `<div class="source-tags">${source.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}</div>` : ''}
         </div>
-        <a href="${safeUrl(source.feed_url)}" target="_blank" rel="noreferrer noopener">${escapeHtml(source.feed_url)}</a>
-      </article>
-    `).join("");
+        <div class="source-actions"><button class="ghost" type="button" data-source-action="edit" data-id="${source.id}">Edit</button>
+          <button class="text-button" type="button" data-source-action="toggle" data-id="${source.id}">${source.enabled ? 'Pause' : 'Enable'}</button>
+          <details class="source-more"><summary>More</summary><button class="text-button danger" type="button" data-source-action="delete" data-id="${source.id}">Delete source</button></details>
+        </div>
+      </article>`).join(''));
   }
+
+  document.getElementById('source-add').addEventListener('click', () => {
+    resetSourceForm();
+    document.getElementById('source-editor').hidden = false;
+    sourceNameInput.focus();
+  });
 
   async function loadSources() {
     const sources = await api("/api/sources");
@@ -102,43 +102,55 @@ export function initRss() {
       return;
     }
     const sources = await api("/api/history/sources");
+    const selected = historySourceSelect.value;
     historySourceSelect.innerHTML = '<option value="">All sources</option>' + sources.map((source) => (
       `<option value="${escapeHtml(source)}">${escapeHtml(source)}</option>`
     )).join("");
+    historySourceSelect.value = sources.includes(selected) ? selected : '';
     historySourcesLoaded = true;
   }
 
-  function renderHistoryResults(items) {
-    if (!items.length) {
-      historyResultsNode.innerHTML = '<div class="empty">No historical records match these filters.</div>';
-      return;
-    }
-
-    renderHtml(historyResultsNode, items.map((item) => {
-      const recordDate = item.article_published_at || item.discovered_at;
-      const rating = item.rating === null ? "Not rated" : `${item.rating} / 5`;
-      return `
-        <article class="card">
-          <div class="card-top">
-            <div>
-              <div class="source">${escapeHtml(item.source_name)}</div>
-              <strong>${escapeHtml(item.title)}</strong>
-            </div>
-            <span>${escapeHtml(item.status)}</span>
-          </div>
-          <div class="summary">${escapeHtml(item.summary)}</div>
-          <div class="source-meta">
-            <span>${escapeHtml(new Date(recordDate).toLocaleString())}</span>
-            <span>Rating: ${escapeHtml(rating)}</span>
-            <div class="rating-group" role="group" aria-label="Rate ${escapeHtml(item.title)}">
-              ${[1,2,3,4,5].map(value => `<button type="button" data-history-rate="${item.id}" data-rating="${value}" aria-label="Rate ${value} out of 5" aria-pressed="${item.rating === value}">${value}</button>`).join('')}
-            </div>
-            <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open source</a>
-          </div>
-        </article>
-      `;
-    }).join(""));
+  function ratingButtons(item, historical = false) {
+    return `<div class="rating-group" role="group" aria-label="Rate ${escapeHtml(item.title)}"><span class="control-label">Rate</span>${[1,2,3,4,5].map(value =>
+      `<button type="button" ${historical ? `data-history-rate="${item.id}"` : `data-action="rate" data-id="${item.id}"`} data-rating="${value}" aria-label="Rate ${value} out of 5" aria-pressed="${item.rating === value}">${value}</button>`).join('')}</div>`;
   }
+  function entryMarkup(item, historical = false) {
+    const date = item.article_published_at || item.discovered_at;
+    return `<article class="card reading-entry">
+      <header class="entry-header"><div class="entry-meta"><span class="entry-source">${escapeHtml(item.source_name)}</span><time datetime="${escapeHtml(date)}" title="${escapeHtml(new Date(date).toLocaleString())}">${escapeHtml(new Date(date).toLocaleDateString())}</time>
+        ${historical ? `<span class="status-badge">${escapeHtml(item.status)}</span>` : ''}</div><h3>${escapeHtml(item.title)}</h3></header>
+      <div class="entry-copy">${escapeHtml(item.summary)}</div>
+      <footer class="entry-actions"><div class="actions"><a href="${escapeHtml(safeUrl(item.article_url))}" target="_blank" rel="noopener noreferrer">Open source ↗</a>
+        ${historical ? '' : `<button class="ghost" type="button" data-action="read" data-id="${item.id}">Mark read</button>`}</div>
+        ${ratingButtons(item, historical)}
+        ${historical ? '' : `<button class="text-button" type="button" data-action="dismiss" data-id="${item.id}" aria-label="Dismiss ${escapeHtml(item.title)}">Dismiss</button>`}
+      </footer></article>`;
+  }
+  function renderHistoryResults(items) {
+    renderHtml(historyResultsNode, items.length ? items.map(item => entryMarkup(item, true)).join('')
+      : '<div class="empty">No briefings match these filters. Try another topic or clear a filter.</div>');
+  }
+  function renderHistoryFilters() {
+    const labels = {
+      days: value => `Within ${value} days`,
+      source: value => value,
+      rating: value => `Rated ${value} / 5`
+    };
+    const active = Object.keys(labels).filter(key => historyParams?.has(key));
+    document.getElementById('history-active-filters').innerHTML = active.map(key => {
+      const label = labels[key](historyParams.get(key));
+      return `<button type="button" data-clear-filter="${key}" aria-label="Remove filter: ${escapeHtml(label)}">${escapeHtml(label)} ×</button>`;
+    }).join('');
+    document.getElementById('history-filter-count').textContent = active.length ? `(${active.length})` : '';
+  }
+  document.getElementById('history-active-filters').addEventListener('click', async event => {
+    const button = event.target.closest('[data-clear-filter]');
+    if (!button || !historyParams) return;
+    const key = button.dataset.clearFilter;
+    ({days:historyDaysInput, source:historySourceSelect, rating:historyRatingSelect})[key].value = '';
+    historyParams.delete(key); historyPage = 1;
+    await loadHistory();
+  });
 
   historySearchForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -165,6 +177,7 @@ export function initRss() {
         return loadHistory();
       }
       renderHistoryResults(data.items);
+      renderHistoryFilters();
       setPagination('history', data);
       historySearchStatusNode.textContent = `${data.total} records found.`;
     } catch (error) {
@@ -175,8 +188,9 @@ export function initRss() {
   historySearchClearButton.addEventListener('click', () => {
     historySearchForm.reset();
     historyParams = null; ++historyRequest;
+    renderHistoryFilters();
     historySearchStatusNode.textContent = '';
-    historyResultsNode.innerHTML = '<div class="empty">Choose filters and select Search to find saved records.</div>';
+    historyResultsNode.innerHTML = '<div class="empty">Search for a topic, or leave the search blank to browse saved briefings.</div>';
     setPagination('history', {page:1, total:0, limit:50});
   });
   for (const [prefix, load] of [['inbox', loadInbox], ['history', loadHistory]]) {
@@ -218,27 +232,7 @@ export function initRss() {
       return;
     }
 
-    renderHtml(researchNode, items.map((item) => `
-      <article class="card">
-        <div class="card-top">
-          <div>
-            <div class="source">${escapeHtml(item.source_name)}</div>
-            <strong>${escapeHtml(item.title)}</strong>
-          </div>
-          <button class="ghost" type="button" data-action="dismiss" data-id="${item.id}" aria-label="Dismiss">×</button>
-        </div>
-        <div class="summary">${escapeHtml(item.summary)}</div>
-        <div class="actions">
-          <a href="${safeUrl(item.article_url)}" target="_blank" rel="noreferrer noopener">Open source</a>
-          <button class="ghost" type="button" data-action="read" data-id="${item.id}">Mark read</button>
-          <div class="rating-group" aria-label="Rate item ${item.id}">
-            ${[1, 2, 3, 4, 5].map((value) => `
-              <button type="button" data-action="rate" data-id="${item.id}" data-rating="${value}">${value}</button>
-            `).join("")}
-          </div>
-        </div>
-      </article>
-    `).join(""));
+    renderHtml(researchNode, items.map(item => entryMarkup(item)).join(''));
   }
 
   async function refreshInbox(message = "") {
@@ -306,8 +300,8 @@ export function initRss() {
 
     try {
       if (button.dataset.sourceAction === "edit") {
-        fillSourceForm(source);
         setActiveView("sources-view");
+        fillSourceForm(source);
         return;
       }
 
@@ -375,6 +369,7 @@ export function initRss() {
 
   sourceCancelButton.addEventListener("click", () => {
     resetSourceForm();
+    document.getElementById('source-add').focus();
     setStatus("Canceled source edit.");
   });
 
@@ -395,7 +390,7 @@ export function initRss() {
         } else setStatus(`Daily pull ${job.state}. You can start another pull.`);
       }
     } catch (error) {
-      setStatus(`${error.message} Select Run daily pull now to reconnect to the job.`);
+      setStatus(`${error.message} Select Pull latest to reconnect to the job.`);
       currentJob = null;
       runButton.disabled = false;
     } finally { jobPollBusy = false; }
