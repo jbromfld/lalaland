@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -58,6 +59,14 @@ def process_source(input: ProcessSourceInput) -> ProcessSourceResult:
     source_id = UUID(input.source.id)
 
     entries_created = 0
+    finish_by = time.monotonic() + 600
+
+    def heartbeat():
+        if activity.in_activity():
+            activity.heartbeat()
+            if activity.is_cancelled():
+                from temporalio.exceptions import CancelledError
+                raise CancelledError()
 
     entries = rss_adapter.fetch_entries(input.source.feed_url)
     eligible_entries = [
@@ -70,26 +79,32 @@ def process_source(input: ProcessSourceInput) -> ProcessSourceResult:
         existing_urls = fetch_existing_urls(conn, list(canonical_to_entry.keys()))
         new_urls = filter_new_urls(list(canonical_to_entry.keys()), existing_urls)
 
-        for canonical_url in new_urls:
-            entry = canonical_to_entry[canonical_url]
-            article_title = entry.title
-            article_text = (entry.summary or "").strip()
+    for canonical_url in new_urls:
+        heartbeat()
+        if time.monotonic() + settings.ollama_timeout_seconds + settings.inference_queue_timeout_seconds >= finish_by:
+            logger.info('Source %s reached its processing budget; skipping remaining entries', input.source.name)
+            break
+        entry = canonical_to_entry[canonical_url]
+        article_title = entry.title
+        article_text = (entry.summary or "").strip()
 
-            if not article_text:
-                logger.warning("Skipping %s because no article text was available", entry.url)
-                continue
+        if not article_text:
+            logger.warning("Skipping %s because no article text was available", entry.url)
+            continue
 
-            try:
-                summary = summarizer.summarize(
-                    source_name=input.source.name,
-                    article_title=article_title,
-                    article_url=entry.url,
-                    article_text=article_text,
-                )
-            except (requests.RequestException, RuntimeError) as exc:
-                logger.warning("Summarization failed for %s: %s", entry.url, exc)
-                continue
+        try:
+            summary = summarizer.summarize(
+                source_name=input.source.name,
+                article_title=article_title,
+                article_url=entry.url,
+                article_text=article_text,
+                heartbeat=heartbeat,
+            )
+        except (requests.RequestException, RuntimeError, ValueError) as exc:
+            logger.warning("Summarization failed for %s: %s", entry.url, exc)
+            continue
 
+        with get_connection(settings) as conn:
             created = insert_inbox_entry(
                 conn,
                 source_id=source_id,
@@ -100,10 +115,10 @@ def process_source(input: ProcessSourceInput) -> ProcessSourceResult:
                 article_published_at=entry.published_at,
                 summary=summary,
             )
-            entries_created += 1 if created else 0
+        entries_created += 1 if created else 0
 
+    with get_connection(settings) as conn:
         update_source_last_polled_at(conn, source_id, pipeline_started_at)
-        conn.commit()
 
     return ProcessSourceResult(
         source_id=input.source.id,

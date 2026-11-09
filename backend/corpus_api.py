@@ -123,6 +123,17 @@ def detail(article_id: int):
     return row
 
 
+@router.get('/api/corpus/{article_id}/status')
+def status(article_id: int):
+    row = store.status(load_settings(), article_id)
+    if row is None:
+        raise HTTPException(404, 'Article not found')
+    progress = {key: row.pop(key) for key in ('stage', 'current', 'total', 'completed', 'activity_attempt')}
+    progress['updated_at'] = row.pop('progress_updated_at')
+    row['progress'] = progress if progress['stage'] else None
+    return row
+
+
 @router.post('/api/corpus/{article_id}/retry')
 async def retry(article_id: int, body: Retry = Retry()):
     settings = load_settings()

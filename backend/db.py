@@ -308,32 +308,19 @@ def insert_inbox_entry(
     return inserted is not None
 
 
-def list_active_inbox_entries(settings: Settings) -> list[dict]:
+def list_active_inbox_entries(settings: Settings, page=1, limit=50) -> dict:
+    return _inbox_page(settings, 'WHERE dismissed_at IS NULL AND read_at IS NULL AND rating IS NULL',
+                       [], page, limit)
+
+
+def _inbox_page(settings, where_clause, params, page, limit):
     with get_connection(settings) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    source_name,
-                    title,
-                    article_url,
-                    canonical_url,
-                    summary,
-                    status,
-                    rating,
-                    read_at,
-                    dismissed_at,
-                    discovered_at,
-                    article_published_at
-                FROM inbox_entries
-                WHERE dismissed_at IS NULL
-                  AND read_at IS NULL
-                  AND rating IS NULL
-                ORDER BY discovered_at DESC
-                """
-            )
-            return cur.fetchall()
+        total = conn.execute(f'SELECT count(*) AS total FROM inbox_entries {where_clause}', params).fetchone()['total']
+        items = conn.execute(f"""SELECT id,source_name,title,article_url,canonical_url,summary,
+            status,rating,read_at,dismissed_at,discovered_at,article_published_at
+            FROM inbox_entries {where_clause} ORDER BY discovered_at DESC,id DESC LIMIT %s OFFSET %s""",
+            (*params, limit, (page-1)*limit)).fetchall()
+    return {'items':items, 'total':total, 'page':page, 'limit':limit}
 
 
 def list_history_sources(settings: Settings) -> list[str]:
@@ -356,7 +343,9 @@ def search_inbox_history(
     source: str | None,
     keyword: str | None,
     rating: int | None,
-) -> list[dict]:
+    page: int = 1,
+    limit: int = 50,
+) -> dict:
     conditions = []
     params: list[str | int] = []
 
@@ -378,30 +367,7 @@ def search_inbox_history(
         params.append(rating)
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    with get_connection(settings) as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""
-                SELECT
-                    id,
-                    source_name,
-                    title,
-                    article_url,
-                    canonical_url,
-                    summary,
-                    status,
-                    rating,
-                    read_at,
-                    dismissed_at,
-                    discovered_at,
-                    article_published_at
-                FROM inbox_entries
-                {where_clause}
-                ORDER BY discovered_at DESC
-                """,
-                params,
-            )
-            return cur.fetchall()
+    return _inbox_page(settings, where_clause, params, page, limit)
 
 
 def dismiss_inbox_entry(settings: Settings, entry_id: int) -> dict | None:

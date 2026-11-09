@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+import json
 from zoneinfo import ZoneInfo
 from temporalio import activity, workflow
 from temporalio.common import RetryPolicy
@@ -9,7 +10,7 @@ with workflow.unsafe.imports_passed_through():
     from backend.config import load_settings
     from backend.services import corpus_store as store
     from backend.services.article_extraction import extract, require_trusted, UntrustedDomain
-    from backend.services.corpus_summary import summarize, generate
+    from backend.services.corpus_summary import summarize, generate, generation_options
     from backend.services.ollama_queue import CorpusDeferred, inference_slot
 
 
@@ -26,8 +27,8 @@ def enforce_article_trust(settings, row):
         raise ApplicationError(str(exc), type='CorpusQuarantined', non_retryable=True) from exc
 
 
-def require_article(settings, article_id):
-    row = store.get(settings, article_id)
+def require_article(settings, article_id, *, lightweight=False):
+    row = store.status(settings, article_id) if lightweight else store.get(settings, article_id)
     if row is None:
         raise ApplicationError('Article was deleted', type='CorpusDeleted', non_retryable=True)
     return row
@@ -64,15 +65,16 @@ def summarize_article(data: dict) -> None:
     current_stage = None
     def report(stage, current, total, completed):
         nonlocal current_stage
-        require_article(settings, row['id'])
+        require_article(settings, row['id'], lightweight=True)
         current_stage = stage
         store.set_progress(settings, row['id'], row['attempt'], activity.info().attempt,
                            stage, current, total, completed)
         activity.heartbeat({'stage':stage, 'current':current, 'total':total, 'completed':completed})
     def cached_generate(call_settings, model, prompt, structured=False):
-        require_article(settings, row['id'])
-        digest = sha256(prompt.encode('utf-8')).hexdigest()
-        use_cache = current_stage == 'reading' and not structured
+        require_article(settings, row['id'], lightweight=True)
+        digest = sha256(json.dumps({'prompt': prompt, 'options': generation_options(call_settings, structured)},
+                                  sort_keys=True).encode('utf-8')).hexdigest()
+        use_cache = current_stage in ('reading', 'condensing') and not structured
         cached = store.cached_generation(settings, row, digest) if use_cache else None
         if cached is not None:
             return cached

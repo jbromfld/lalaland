@@ -45,8 +45,11 @@ docker compose exec backend python -m backend.services.knowledge status
 `knowledge_schedule_timezone` in `backend/config.py`, or override them with
 `KNOWLEDGE_SCHEDULE_HOUR`, `KNOWLEDGE_SCHEDULE_MINUTE`, and
 `KNOWLEDGE_SCHEDULE_TIMEZONE`. Backend startup updates the existing schedule.
-It delivers up to five source records
-per run; overlapping runs are skipped. Each corpus record can publish both its
+It delivers batches of 25 source records for up to twenty minutes per run;
+overlapping runs are skipped. Delivery stops after a failed batch, an unavailable
+delivery lock, or an empty/partial batch; remaining events stay queued for the next
+run. Network timeouts are limited by the remaining budget, with heartbeats between
+deliveries. Each corpus record can publish both its
 original text and briefing. Database triggers queue inserts, content changes and
 deletes atomically with the source transaction. Review/rating changes do not
 reindex. Delivery retries failed records, and versioned acknowledgements preserve
@@ -71,8 +74,10 @@ numeric source ID as a string; briefing IDs append `-briefing`. Both have the
 original `source_id` in metadata. RSS indexes only the saved summary. Corpus
 indexes extracted text with page/section references, plus the generated briefing
 as a separate `content_type`. Only completed (`ready`) corpus records are indexed.
-Corpus publication dates remain unknown pending reliable date normalization;
-RSS uses its saved `article_published_at`.
+Corpus uses its normalized publication date, represented as midnight UTC;
+unknown dates remain null. RSS uses its saved `article_published_at`. Date-only
+corpus changes also queue an indexing event. After upgrading an existing index,
+run the existing `backfill` command to republish dates for older documents.
 
 ```bash
 curl http://127.0.0.1:8000/api/knowledge/query \

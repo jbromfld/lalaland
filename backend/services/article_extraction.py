@@ -40,16 +40,20 @@ class UntrustedDomain(ValueError):
         super().__init__(f"Domain is not trusted: {urlsplit(url).hostname}")
 
 
-def article_hostname(url):
+def public_hostname(url, *, https_only=False):
     # Reject parser ambiguities before checking the exact, IDNA-normalized host.
     if any(ord(c) <= 32 or ord(c) == 127 for c in url) or "\\" in url:
         raise ValueError('Invalid article URL')
     p = urlsplit(url)
-    if p.scheme != 'https' or not p.hostname or p.username is not None or p.password is not None:
-        raise ValueError('Use a public HTTPS article URL without credentials')
-    if p.port not in (None, 443):
-        raise ValueError('Only the standard HTTPS port is supported')
+    if p.scheme not in (('https',) if https_only else ('http', 'https')) or not p.hostname or p.username is not None or p.password is not None:
+        raise ValueError('Use a public HTTP(S) URL without credentials' if not https_only else 'Use a public HTTPS article URL without credentials')
+    if p.port not in (None, 443 if p.scheme == 'https' else 80):
+        raise ValueError('Only standard HTTP(S) ports are supported')
     return p.hostname.encode('idna').decode('ascii').lower()
+
+
+def article_hostname(url):
+    return public_hostname(url, https_only=True)
 
 
 def require_trusted(url, domains=None, *, approved_hosts=()):
@@ -75,18 +79,22 @@ def canonical_article_url(url):
     return 'https://arxiv.org/abs/' + match[1] if match else canonicalize_url(url)
 
 
-def download(url, domains=None, *, approved_hosts=()):
-    deadline = time.monotonic() + 90
+def download(url, domains=None, *, approved_hosts=(), feed=False):
+    """Feeds share destination pinning and bounds, without corpus domain approval."""
+    deadline = time.monotonic() + (30 if feed else 90)
+    size_limit = 5 * 1024 * 1024 if feed else MAX_BYTES
     session = requests.Session()
     session.trust_env = False
     try:
         for _ in range(6):
-            require_trusted(url, domains, approved_hosts=approved_hosts)
-            validate_url(url)
+            if not feed:
+                require_trusted(url, domains, approved_hosts=approved_hosts)
+                validate_url(url)
             # Pin the connection to a validated address to prevent DNS rebinding.
             parts = urlsplit(url)
-            hostname = article_hostname(url)
-            addresses = socket.getaddrinfo(hostname, 443, type=socket.SOCK_STREAM)
+            hostname = public_hostname(url, https_only=not feed)
+            port = 443 if parts.scheme == 'https' else 80
+            addresses = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
             if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
                 raise ValueError('Article destination changed to a private address')
             address = addresses[0][4][0]
@@ -96,7 +104,10 @@ def download(url, domains=None, *, approved_hosts=()):
             if parts.scheme == 'https':
                 adapter.init_poolmanager(1, 1, assert_hostname=hostname, server_hostname=hostname)
             session.mount(parts.scheme + '://', adapter)
-            with session.get(pinned, stream=True, allow_redirects=False, timeout=(10,20),
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ValueError('Download exceeds time limit')
+            with session.get(pinned, stream=True, allow_redirects=False, timeout=(min(10, remaining), min(20, remaining)),
                              headers={'Host':hostname, 'User-Agent':'lalaland-research/0.1'}) as response:
                 if response.is_redirect:
                     url = urljoin(url, response.headers['Location'])
@@ -105,7 +116,7 @@ def download(url, domains=None, *, approved_hosts=()):
                 body = bytearray()
                 for chunk in response.iter_content(65536):
                     body.extend(chunk)
-                    if len(body) > MAX_BYTES or time.monotonic() > deadline:
+                    if len(body) > size_limit or time.monotonic() > deadline:
                         raise ValueError('Article exceeds download size or time limit')
                 return bytes(body), response.headers.get('Content-Type','').lower(), url
         raise ValueError('Too many article redirects')

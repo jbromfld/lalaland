@@ -1,9 +1,12 @@
 """Publish source documents to the shared lassy service; no local retrieval logic."""
 import argparse
 import json
+import time
+from datetime import UTC, datetime
 from urllib.parse import quote
 
 import requests
+from temporalio.exceptions import CancelledError
 
 from backend.config import load_settings
 from backend.db import get_connection, initialize_database
@@ -25,9 +28,9 @@ def documents(conn, kind, source_id):
     if row["state"] != "ready" or not row["article_text"]:
         return {}
     metadata = {"source_id": str(source_id), "article_metadata": row["metadata"]}
-    # Extracted date strings are not consistently publication dates. Preserve raw
-    # metadata and leave published_at unknown until date normalization is added.
-    base = dict(title=row["title"] or "Untitled", url=row["canonical_url"], metadata=metadata)
+    published = row.get('published_date')
+    base = dict(title=row["title"] or "Untitled", url=row["canonical_url"], metadata=metadata,
+                published_at=datetime.combine(published, datetime.min.time(), UTC).isoformat() if published else None)
     result = {str(source_id): dict(base, content=row["article_text"],
         sections=[{"ref": s["ref"], "text": s["text"]} for s in row["sections"] if s["text"].strip()],
         content_type="corpus_article")}
@@ -48,7 +51,7 @@ def backfill(settings):
                 SET version=nextval('knowledge_event_version'),attempts=0,last_error=NULL,updated_at=NOW()""", (kind,))
 
 
-def drain(settings, limit=25):
+def drain(settings, limit=25, *, deadline=None, heartbeat=lambda: None):
     if not settings.knowledge_active:
         return {"enabled": False, "indexed": 0, "failed": 0}
     indexed = failed = 0
@@ -62,21 +65,31 @@ def drain(settings, limit=25):
             events = conn.execute("SELECT * FROM knowledge_outbox ORDER BY updated_at,kind,source_id LIMIT %s", (limit,)).fetchall()
             with requests.Session() as session:
                 for event in events:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    heartbeat()
                     kind, source_id = event["kind"], event["source_id"]
                     try:
                         desired = documents(conn, kind, source_id)
                         ids = [str(source_id)] + ([f"{source_id}-briefing"] if kind == "corpus" else [])
                         for document_id in ids:
+                            heartbeat()
+                            remaining = deadline - time.monotonic() if deadline is not None else settings.knowledge_timeout_seconds
+                            if remaining <= 0:
+                                return {'enabled': True, 'indexed': indexed, 'failed': failed}
+                            timeout = min(settings.knowledge_timeout_seconds, remaining)
                             url = f"{settings.knowledge_service_url}/documents/{COLLECTIONS[kind]}/{quote(document_id, safe='')}"
                             if document_id in desired:
-                                response = session.put(url, json=desired[document_id], timeout=settings.knowledge_timeout_seconds)
+                                response = session.put(url, json=desired[document_id], timeout=timeout)
                             else:
-                                response = session.delete(url, timeout=settings.knowledge_timeout_seconds)
+                                response = session.delete(url, timeout=timeout)
                             response.raise_for_status()
                         # A concurrent edit/delete replaces version; never acknowledge it here.
                         conn.execute("DELETE FROM knowledge_outbox WHERE kind=%s AND source_id=%s AND version=%s",
                                      (kind,source_id,event["version"]))
                         indexed += 1
+                    except CancelledError:
+                        raise
                     except Exception as exc:
                         # Avoid persisting response bodies, source text or credentials.
                         conn.execute("""UPDATE knowledge_outbox SET attempts=attempts+1,last_error=%s,

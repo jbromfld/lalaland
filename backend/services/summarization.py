@@ -39,7 +39,10 @@ def _generate_summary(
     response.raise_for_status()
 
     payload = response.json()
-    summary = _remove_reasoning(payload.get("response", ""))
+    raw = payload.get('response') if isinstance(payload, dict) else None
+    if not isinstance(raw, str) or payload.get('done_reason') == 'length' or payload.get('done') is False:
+        raise RuntimeError('Ollama returned an invalid or incomplete summary')
+    summary = _remove_reasoning(raw)
     if not summary:
         raise RuntimeError("Ollama returned an empty summary")
 
@@ -58,13 +61,14 @@ class OllamaSummarizer:
         article_title: str,
         article_url: str,
         article_text: str,
+        heartbeat=lambda: None,
     ) -> str:
         prompt = dedent(
             f"""
             You are writing a daily research briefing.
             Summarize the article below in 2-4 concise sentences.
             Focus on the main claim, the important supporting details, and why it matters.
-            Do not use markdown, bullets, or hedging.
+            Do not use markdown or bullets. Preserve meaningful uncertainty and limitations in the source.
 
             Source: {source_name}
             Title: {article_title}
@@ -82,7 +86,7 @@ class OllamaSummarizer:
             span.set_attribute("article.url", article_url)
             span.set_attribute("gen_ai.request.prompt_chars", len(prompt))
 
-            with inference_slot(self.settings):
+            with inference_slot(self.settings, heartbeat=heartbeat):
                 summary = _generate_summary(
                     prompt,
                     ollama_base_url=self.settings.ollama_base_url,

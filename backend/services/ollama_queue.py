@@ -12,6 +12,10 @@ class CorpusDeferred(Exception):
     """The overnight window has insufficient time for another model call."""
 
 
+class InferenceBusy(RuntimeError):
+    """The local model remained busy beyond the queue wait limit."""
+
+
 def check_deadline(settings, deadline, timeout_seconds=None):
     reserve = settings.corpus_ollama_timeout_seconds if timeout_seconds is None else timeout_seconds
     if deadline and datetime.now(UTC).timestamp() + reserve + 30 >= datetime.fromisoformat(deadline).timestamp():
@@ -20,6 +24,9 @@ def check_deadline(settings, deadline, timeout_seconds=None):
 
 @contextmanager
 def inference_slot(settings, deadline=None, heartbeat=lambda:None, timeout_seconds=None):
+    # Corpus already has a durable window/defer mechanism. Interactive/RSS work
+    # must not occupy a request/activity thread indefinitely while queued.
+    wait_until = time.monotonic() + settings.inference_queue_timeout_seconds
     with get_connection(settings) as conn:
         conn.autocommit = True
         while True:
@@ -27,7 +34,9 @@ def inference_slot(settings, deadline=None, heartbeat=lambda:None, timeout_secon
             if conn.execute('SELECT pg_try_advisory_lock(%s) AS acquired',(OLLAMA_LOCK,)).fetchone()['acquired']:
                 break
             heartbeat()
-            time.sleep(1)
+            if deadline is None and time.monotonic() >= wait_until:
+                raise InferenceBusy('The local model is busy. Try again shortly or use chunk mode.')
+            time.sleep(min(1, max(0, wait_until - time.monotonic())) if deadline is None else 1)
         try:
             check_deadline(settings, deadline, timeout_seconds)
             yield

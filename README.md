@@ -60,18 +60,20 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
 
 ## Use the agents
 
-1. Add RSS feeds in **Sources**, then choose **Run now** and review **Inbox**.
+1. Add public HTTP(S) RSS feeds in **Sources**, then choose **Run now** and review **Inbox**.
+   The pull starts in the background; the dashboard reports its result without holding the request open.
 2. In **Corpus**, submit an arXiv, public PDF, or HTML article URL. Choose
    **Run queued articles now**, or wait for the overnight batch (default
    03:00–05:00 America/Detroit). Submission alone does not start inference.
-3. Read or rate results; use search to find reviewed material later.
+3. Read or rate results; use search to find reviewed material and rate RSS items after reading them.
+   Inbox and historical results are paginated.
 4. With LA-3 enabled, open **Knowledge** and enter a question. Choose **Chunks**
    for retrieved excerpts or **Synthesized summary** for an answer with supporting
    sources. Filter to RSS, corpus, or both; the summary model dropdown lists
    installed Ollama models and defaults to `knowledge_model` in `backend/config.py`.
 
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
-domains enter quarantine. Select **Review sources to release**, then **Trust sources
+domains enter quarantine. Open the article marked **Approval needed**, then choose **Trust sources
 and release** to approve the displayed hostnames and queue the article.
 PDF processing uses extracted text; it does not interpret figures or scanned pages.
 See [agent behavior and source policies](docs/agents.md) for details.
@@ -101,6 +103,12 @@ uv run --locked --extra dev pytest
 
 Tests use disposable PostgreSQL databases and an ephemeral Temporal test server;
 see [validation prerequisites](docs/development.md) before running them.
+
+RSS processing is best effort: unavailable feeds, failed summaries, and work beyond
+an individual source's ten-minute budget may be skipped. No recovery queue is kept.
+Interactive model requests wait up to 30 seconds for inference by default; busy
+knowledge queries suggest retrying or using **Chunks**. Existing RSS schedule timing
+is preserved when restarting or upgrading.
 
 ## Reference
 

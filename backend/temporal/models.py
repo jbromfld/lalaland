@@ -29,3 +29,4 @@ class DailyBriefingResult:
     sources_processed: int
     entries_seen: int
     entries_created: int
+    sources_failed: int = 0

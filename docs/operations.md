@@ -19,8 +19,8 @@ LA-2: Article URLs -> saved queue -> extraction -> evidence notes -> briefings -
 - **Worker:** `backend/temporal/worker.py` executes both agents' workflows and synchronous activities.
 - **Scheduling:** Temporal schedules are registered by `backend/temporal/client.py` at backend startup.
 - **Inference:** both agents use `OLLAMA_BASE_URL`, with separate model settings. A Postgres advisory lock serializes their Ollama calls, including manual runs and overruns.
-- **Dashboard:** `frontend/index.html`, served directly by FastAPI locally or by Nginx in Docker.
-- **Operations:** OpenTelemetry instrumentation, Temporal execution history, and `GET /health`.
+- **Dashboard:** `frontend/index.html` plus native JavaScript modules and CSS in `frontend/assets/`, served by FastAPI locally or by Nginx in Docker. Both serve assets under `/static/assets/`.
+- **Operations:** OpenTelemetry initialization in both API and worker, Temporal execution history, and `GET /health` (process liveness only). The API flushes traces at shutdown; the worker shuts down its exporter on exit.
 
 The worker must be running. A reachable Temporal server can accept workflows while
 the worker is offline, but no ingestion or summarization will execute until a

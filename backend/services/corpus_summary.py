@@ -37,13 +37,18 @@ def installed_models(settings):
     return sorted({m['name'] for m in models})
 
 
+def generation_options(settings, structured=False):
+    return {'temperature':0.2, 'num_ctx':16384,
+            'num_predict':settings.corpus_final_num_predict if structured else 768}
+
+
 @traceable(
     name='corpus.generate', run_type='llm', tags=['ollama', 'corpus'],
     process_inputs=lambda inputs: {key: inputs[key] for key in ('model', 'prompt', 'structured')},
 )
 def generate(settings, model, prompt, structured=False):
     payload = {'model':model, 'prompt':prompt, 'stream':False, 'think':False,
-               'options':{'temperature':0.2, 'num_ctx':16384, 'num_predict':settings.corpus_final_num_predict if structured else 768}}
+               'options':generation_options(settings, structured)}
     if structured:
         payload['format'] = {'type':'object', 'properties':{k:{'type':'string'} for k in HEADINGS},
                              'required':HEADINGS, 'additionalProperties':False}
@@ -64,7 +69,7 @@ def generate(settings, model, prompt, structured=False):
     raw = body.get('response') if isinstance(body, dict) else None
     if not isinstance(raw, str):
         raise ValueError('Ollama returned an invalid generation response')
-    if structured and (body.get('done_reason') == 'length' or body.get('done') is False):
+    if body.get('done_reason') == 'length' or body.get('done') is False:
         raise IncompleteGenerationError(
             f"Ollama returned an incomplete response (done_reason={body.get('done_reason')!r}, "
             f"generated_tokens={body.get('eval_count')}, "

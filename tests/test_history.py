@@ -85,7 +85,8 @@ def test_search_history_filters_historical_entries(settings):
     all_entries = search_inbox_history(
         settings, days=None, source=None, keyword=None, rating=None
     )
-    assert len(all_entries) == 3
+    assert all_entries['total'] == 3
+    all_entries = all_entries['items']
     assert {entry["status"] for entry in all_entries} == {"read", "dismissed", "new"}
 
     filtered = search_inbox_history(
@@ -95,13 +96,13 @@ def test_search_history_filters_historical_entries(settings):
         keyword="climate",
         rating=4,
     )
-    assert [entry["id"] for entry in filtered] == [recent_id]
+    assert [entry["id"] for entry in filtered['items']] == [recent_id]
 
     assert [
         entry["title"]
         for entry in search_inbox_history(
             settings, days=30, source=None, keyword="ocean", rating=None
-        )
+        )['items']
     ] == ["Recent Ocean Report"]
 
 

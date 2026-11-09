@@ -187,6 +187,6 @@ async def test_sync_schedule_rejects_invalid_time(overrides):
     from backend.temporal.client import ensure_knowledge_schedule
 
     client = Mock()
-    with pytest.raises(ValueError, match='Invalid knowledge sync schedule'):
+    with pytest.raises(ValueError, match='knowledge_schedule requires'):
         await ensure_knowledge_schedule(client, replace(Settings(), knowledge_enabled=True, knowledge_service_url='http://retrieval.test', **overrides))
     client.get_schedule_handle.assert_not_called()

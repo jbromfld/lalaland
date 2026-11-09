@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from backend.config import load_settings
 from backend.services.knowledge_agent import evidence_chunks, synthesize
 from backend.services.corpus_summary import installed_models
+from backend.services.ollama_queue import InferenceBusy
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
 
@@ -64,7 +65,14 @@ def query_knowledge(request: KnowledgeQuery):
                                  timeout=settings.knowledge_timeout_seconds)
         response.raise_for_status()
         result = response.json()
-    except requests.RequestException as exc:
+        if not isinstance(result, dict) or not isinstance(result.get('chunks'), list) or any(
+            not isinstance(chunk, dict) or any(
+                key in chunk and chunk[key] is not None and not isinstance(chunk[key], str)
+                for key in ('content', 'title', 'url', 'citation')
+            ) for chunk in result['chunks']
+        ):
+            raise ValueError('Invalid retrieval response')
+    except (requests.RequestException, ValueError) as exc:
         raise HTTPException(502, "Shared retrieval service is unavailable") from exc
     if request.mode == 'chunks':
         return result
@@ -74,6 +82,8 @@ def query_knowledge(request: KnowledgeQuery):
                 'model': None}
     try:
         summary = synthesize(settings, request.query, chunks)
+    except InferenceBusy as exc:
+        raise HTTPException(503, str(exc), headers={'Retry-After': '30'}) from exc
     except (requests.RequestException, ValueError) as exc:
         raise HTTPException(502, 'Knowledge agent could not generate an answer. Try chunk mode or check the configured Ollama model.') from exc
     return {**result, 'chunks': chunks, 'summary': summary, 'model': settings.knowledge_model}

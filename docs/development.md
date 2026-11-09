@@ -27,6 +27,20 @@ Set `CORPUS_E2E_MODEL` to override the model for that test. It can take several
 minutes depending on hardware. The test verifies persistence through schema
 reinitialization and new connections; it does not restart running app services.
 
+## Frontend checks
+
+The dashboard uses native ES modules and CSS under `frontend/assets/`; no Node
+packages or bundler are required. Check JavaScript syntax with:
+
+```bash
+for file in frontend/assets/*.js; do node --input-type=module --check < "$file"; done
+```
+
+Verify pagination, mark-read followed by rating in Search, manual-job startup,
+and corpus progress updates after UI changes. Polling pauses in hidden tabs and
+preserves focused controls during status updates. Both FastAPI and the frontend
+image must serve `/static/assets/` with JavaScript/CSS content types.
+
 ## Standardized environment
 
 Use CPython **3.13.16** and `uv sync --locked` for this repository. The dependency

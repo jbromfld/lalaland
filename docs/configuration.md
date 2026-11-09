@@ -22,8 +22,9 @@ model selection.
 | `OLLAMA_BASE_URL` | Shared Ollama server | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | LA-1 RSS model | `granite4.2:3b` |
 | `OLLAMA_TIMEOUT_SECONDS` | LA-1 inference timeout | `120` |
+| `INFERENCE_QUEUE_TIMEOUT_SECONDS` | Maximum RSS/knowledge wait for the inference lock | `30` |
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | LA-1 daily start | `6` / `0` |
-| `SCHEDULE_TIMEZONE` | LA-1 schedule timezone | `local` (see below) |
+| `SCHEDULE_TIMEZONE` | LA-1 schedule timezone | `UTC` (see below) |
 | `CORPUS_MODEL` | LA-2 default model | `granite4.2:3b` |
 | `CORPUS_TRUSTED_DOMAINS` | LA-2 trusted domains and their subdomains | `arxiv.org,neurips.cc` |
 | `CORPUS_SCHEDULE_HOUR` / `CORPUS_END_HOUR` | LA-2 overnight window | `3` / `5` |
@@ -41,11 +42,18 @@ model selection.
 | `TEMPORAL_ADDRESS` | Temporal endpoint | `host.docker.internal:30733` |
 | `TEMPORAL_NAMESPACE` | Temporal namespace | `lalaland` |
 
-For LA-1, `SCHEDULE_TIMEZONE=local` leaves Temporal's timezone unset, so the default
-06:00 schedule runs in **UTC**: 02:00 Detroit during daylight saving time and 01:00
-during standard time. Use an explicit IANA timezone when creating a schedule if
-you want a fixed local hour. Startup creates the LA-1 schedule only if missing;
-changing its environment settings does not update an existing schedule.
+For LA-1, the default timezone is explicitly **UTC**, preserving the former
+`local` setting's effective behavior: 06:00 UTC is 02:00 Detroit during daylight
+saving time and 01:00 during standard time. Legacy `SCHEDULE_TIMEZONE=local` is
+still accepted as UTC. Startup creates the LA-1 schedule only if missing; it
+never changes an existing schedule's timing. Use an explicit IANA timezone when
+creating a schedule if you want a fixed local hour.
+
+Timeouts and output budgets must be positive. Schedule hours, minutes, processing
+windows, and IANA timezones are validated when settings are constructed. Corpus
+model timeouts must remain below 1,200 seconds. RSS and knowledge stop waiting for
+the model after `INFERENCE_QUEUE_TIMEOUT_SECONDS`; corpus batches keep their
+existing deadline and deferral mechanism instead.
 
 LA-2 uses its explicit timezone and updates its own schedule at startup. Its start
 and end hours must fall on the same day, with end after start. Keep both corpus

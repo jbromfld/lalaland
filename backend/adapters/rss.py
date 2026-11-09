@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from time import struct_time
 
 import feedparser
+from backend.services.article_extraction import download
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,10 @@ class RSSAdapter:
         return [entry.url for entry in self.fetch_entries(feed_url)]
 
     def fetch_entries(self, feed_url: str) -> list[FeedEntry]:
-        feed = feedparser.parse(feed_url)
+        body, _, resolved = download(feed_url, feed=True)
+        feed = feedparser.parse(body, response_headers={'content-location': resolved})
+        if not feed.version or (feed.bozo and not feed.entries):
+            raise ValueError('The source did not return a readable RSS or Atom feed')
         entries: list[FeedEntry] = []
 
         for entry in feed.entries:

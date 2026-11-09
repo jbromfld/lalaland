@@ -76,9 +76,19 @@ def get(settings, article_id):
             FROM corpus_articles LEFT JOIN corpus_quarantine q ON q.article_id=corpus_articles.id LEFT JOIN corpus_reviews ON corpus_reviews.article_id=corpus_articles.id
             WHERE corpus_articles.id = %s''', (article_id,)).fetchone()
         if row:
+            row.pop('search_document', None)
             row['progress'] = conn.execute('''SELECT stage,current,total,completed,activity_attempt,updated_at
                 FROM corpus_progress WHERE article_id=%s AND attempt=%s''', (article_id,row['attempt'])).fetchone()
         return row
+
+
+def status(settings, article_id):
+    """Small response for polling and checking in-flight work."""
+    with get_connection(settings) as conn:
+        return conn.execute('''SELECT a.id,a.attempt,a.state,a.error,a.updated_at,q.url AS quarantine_url,
+            p.stage,p.current,p.total,p.completed,p.activity_attempt,p.updated_at AS progress_updated_at
+            FROM corpus_articles a LEFT JOIN corpus_quarantine q ON q.article_id=a.id LEFT JOIN corpus_progress p
+              ON p.article_id=a.id AND p.attempt=a.attempt WHERE a.id=%s''', (article_id,)).fetchone()
 
 
 def create(settings, url, canonical, model, quarantine_reason=None):
