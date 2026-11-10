@@ -1,64 +1,35 @@
-# Copilot Instructions
+# Contributor instructions
 
-## Build, test, and lint commands
+Use Python 3.13.16 and `uv sync --locked --extra dev`. Run
+`uv run --locked --extra dev pytest`; database tests create/drop disposable
+`lalaland_test_*` PostgreSQL databases and Temporal tests use an ephemeral server.
+Live inference is opt-in. See `docs/development.md` for prerequisites.
 
-### Local runtime
+The API is FastAPI, background processing uses Temporal, storage is PostgreSQL,
+and Ollama inference is serialized with a session advisory lock. Synchronous I/O
+runs in the worker's thread executor; keep workflow code deterministic and put
+I/O in activities. Use `workflow.now()` for workflow time.
 
-Install backend dependencies:
+RSS processing is intentionally best effort. Failed feeds/summaries and work past
+a source's ten-minute budget may be skipped. Do not add a recovery queue or retain
+raw RSS article bodies. Read, rate, or dismiss removes an item from Inbox; Search
+still finds it and allows later rating. Inbox and history return paginated
+`items/total/page/limit` envelopes.
 
-```bash
-python3 -m pip install -e ".[dev]"
-```
+Corpus retains extracted source text and sections, guarded download policies,
+quarantine approvals, review state, and model generation checkpoints. Keep model
+calls outside application transactions, preserve deletion/attempt guards, and
+use lightweight status queries for polling. Knowledge integration remains optional.
 
-Run the app locally:
+The dashboard shell is `frontend/index.html`; native ES modules and CSS live in
+`frontend/assets/`. No frontend framework or bundler is needed. Preserve same-origin
+`/api/*` requests and `/static/assets/` serving in FastAPI and Nginx. Escape rendered
+text and restrict outbound links to HTTP(S). Preserve keyboard focus while polling.
 
-```bash
-uvicorn backend.main:app --reload
-```
+`POST /api/jobs/run-now` returns immediately and reuses the active manual RSS run;
+`GET /api/jobs/{workflow_id}` reports status. Existing RSS schedules must not be
+updated on startup. UTC is the explicit default; legacy `local` also means UTC.
 
-### Docker runtime
-
-Start the frontend, backend, and Temporal worker containers while using Postgres, Ollama, and Temporal on the host:
-
-```bash
-docker compose up --build
-```
-
-If the machine only has the legacy CLI:
-
-```bash
-docker-compose up --build
-```
-
-### Current validation command
-
-```bash
-pytest
-```
-
-Runs the suite in `tests/` (pure unit tests plus a Temporal workflow test using
-time-skipping, no real server needed). There is no lint configuration yet.
-
-## High-level architecture
-
-- The app is a **FastAPI backend** in `backend/main.py` plus a separate **Temporal worker** process (`backend/temporal/worker.py`). Startup uses the FastAPI lifespan hook to initialize telemetry, create the Postgres schema, connect to Temporal, and register a server-side Schedule (`backend/temporal/client.py`) that replaced the old in-process APScheduler job.
-- The scheduled flow is `DailyBriefingWorkflow` (`backend/temporal/workflows.py`), executed by the worker against per-source activities in `backend/temporal/activities.py`. Each source is its own activity with its own retries, instead of one all-or-nothing transaction. Activities load enabled rows from `research_sources`, pull feed entries through `backend/adapters/rss.py`, canonicalize URLs with `backend/services/discovery.py`, summarize with Ollama Granite in `backend/services/summarization.py`, and insert new inbox records into Postgres.
-- `POST /api/jobs/run-now` starts the same workflow via the Temporal client and awaits its result — it no longer runs the pipeline in-thread.
-- The Temporal server itself (with Postgres persistence) is a separate shared local service; see the sibling `temporal` repo. `TEMPORAL_ADDRESS`/`TEMPORAL_NAMESPACE` in `.env` point at it.
-- Persistence is split across two tables in `backend/db.py`:
-  - `research_sources` stores feed configuration and source weighting.
-  - `inbox_entries` stores only summary metadata and user actions. **Raw article bodies are intentionally transient and should not be persisted.**
-- The UI is a **single static HTML page** in `frontend/index.html`. It manages both the inbox and source CRUD by calling same-origin `/api/*` endpoints.
-- In local non-Docker runs, the backend serves the static file directly. In Docker, `frontend/nginx.conf` serves the HTML and proxies `/api` and `/health` to the backend container.
-- Configuration is centralized in `backend/config.py` and comes from environment variables. The Docker setup expects host services via `.env`, especially local Postgres and local Ollama through `host.docker.internal`.
-- Telemetry is set up in `backend/telemetry.py`. If `OTEL_EXPORTER_OTLP_ENDPOINT` is unset, spans go to the console by default.
-
-## Key conventions
-
-- Treat **`research_sources` as the source of truth** for ingestion configuration. The daily pipeline only processes rows where `enabled = TRUE`, ordered by `source_weight DESC, name ASC`.
-- URL deduplication is based on **canonical URL strings**, not feed entry IDs. `canonicalize_url()` strips fragments, lowercases scheme/host, trims trailing slashes, and removes tracking params such as `utm_*`, `fbclid`, and `gclid`.
-- Keep request/input normalization close to the API layer. `backend/main.py` trims source payload strings before passing them into DB helpers, while the DB layer enforces uniqueness with the `feed_url` unique constraint.
-- The current product behavior is that inbox items remain visible until they are dismissed or both read and rated. Any change to inbox queries should preserve that workflow unless intentionally changing product behavior.
-- The frontend relies on **same-origin relative fetches** like `/api/inbox` and `/api/sources`. If you change service boundaries or ports, preserve that contract or update the nginx proxy and frontend together.
-- Frontend rendering currently escapes text before injecting HTML and only allows `http`/`https` links. Preserve that safety pattern when changing dashboard rendering.
-- Activities are intentionally synchronous (`requests`, `psycopg`) and run in a `ThreadPoolExecutor` inside the async Temporal worker. Follow the existing pattern unless you are intentionally redesigning concurrency. Workflow files (`backend/temporal/workflows.py`) must stay deterministic — no direct I/O, use `workflow.now()` instead of `datetime.now()`, and wrap imports of modules with side effects in `workflow.unsafe.imports_passed_through()`.
+Do not commit `.env` or service credentials. Keep configuration in the existing
+Settings dataclass. See README and docs for deployment, persistence, scheduling,
+knowledge backfill, API contracts, and release publishing.

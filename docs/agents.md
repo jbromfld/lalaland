@@ -11,25 +11,42 @@ Run commands from the repository root unless stated otherwise.
 | Output | A concise 2–4 sentence briefing | An engineering briefing targeting 800–1,200 words |
 | Model setting | `OLLAMA_MODEL` | `CORPUS_MODEL`, with optional per-article selection |
 | Scheduled processing | Daily briefing schedule | Overnight batch, default 03:00–05:00 America/Detroit |
-| Manual processing | **Run now** starts the daily briefing workflow | **Run queued articles now** starts a corpus batch |
+| Manual processing | **Pull latest** starts the daily briefing workflow | **Run queued articles now** starts a corpus batch |
 | Review | Read, rate 1–5, or dismiss | Read or rate 1–5 |
 | Search | Historical inbox search | Full-text corpus search, including reviewed articles |
 
 ## LA-1: RSS briefing
 
-Configure feeds in **Sources**, then review new summaries in **Inbox**. The daily
-workflow polls enabled sources, discovers recently published entries, removes
+Choose **Add source** in **Sources** to configure a feed. Tags and processing
+priority are under optional settings; **Edit** reopens the source form. Paused
+feeds stay saved but are excluded from pulls. Review new summaries in **Inbox**.
+The daily workflow polls enabled sources, discovers recently published entries, removes
 tracking parameters from URLs, and skips URLs already saved. It summarizes the
 text supplied by the feed; it does not download and read the full linked paper.
 
 **Mark read**, rating an entry, or dismissing it removes it from the active inbox.
 The **Search** navigation view still finds those entries by keyword, source,
-date range, and rating. Feed text is transient; source configuration, generated
-summaries, URLs, timestamps, and review state remain in Postgres.
+date range, and rating, and lets you rate previously read entries. Inbox and
+historical results use pages of 50 records by default. Search filters are under
+**Filters**; applied filters appear as removable chips. Feed text is transient;
+source configuration, generated summaries, URLs, timestamps, and review state
+remain in Postgres.
 
 Temporal's `daily-briefing-schedule` starts `DailyBriefingWorkflow`, which processes
-sources through separate activities with retries. The RSS **Run now** action
-starts the same workflow immediately and waits for its result.
+sources through separate activities. Each source gets a ten-minute processing
+budget, with a single activity attempt and an eleven-minute execution timeout.
+Failed sources do not prevent later sources from running; failed summaries and
+remaining entries beyond the budget may be skipped permanently. Cancellation is
+checked between entries and while waiting for inference. No retry queue is kept.
+
+Feeds must use public HTTP(S) addresses and standard ports, without credentials.
+Downloads use destination pinning, a 5 MiB size bound, five redirects, and a
+30-second download budget with socket timeouts. Redirect destinations are checked
+before connecting; file paths and unsupported schemes are rejected.
+
+The Inbox **Pull latest** action starts a background manual run and returns immediately.
+Repeated clicks reuse the active manual run. The dashboard polls its status and
+reports completed/skipped source counts; a worker must be running to process it.
 
 ## LA-2: Research corpus
 
@@ -38,13 +55,26 @@ Open **Corpus** and submit a URL such as
 not immediately start inference. The worker extracts the article, creates evidence
 notes from bounded chunks, condenses those notes, and writes a structured briefing.
 
-Briefings are written for a DevOps/AIOps engineer:
+Briefings prioritize understanding the content and putting its ideas to use:
 
-- A plain-English takeaway, the problem being solved, and how the approach works.
-- Experimental evidence, conditions, and limitations, with page/section references.
-- Implications for deployment, cost, latency, reliability, observability, and customer integration.
-- Adoption requirements, operational tradeoffs, and a small measurable experiment.
-- Essential terminology, with paper findings distinguished from suggested engineering applications.
+- A plain-language content summary and 3–5 key takeaways.
+- A concise explanation of how the central idea works.
+- Concrete real-world use cases: who benefits and when the ideas apply.
+- Practical uses in everyday work, decisions, or tools, with relevant tradeoffs.
+- Supporting evidence, limitations, and brief terminology or source references.
+
+The optional **Practical experiment** comes last and is limited to 60 words and
+1–2 bullets in new generations. It is collapsed in the reader, so the article's
+summary and applications stay prominent. DevOps/AIOps examples are included when
+relevant, rather than making every paper an infrastructure project.
+
+Section text supports Markdown paragraphs, lists, emphasis, links, quotes, code,
+and tables. Markdown is parsed and sanitized locally; no CDN is needed. Existing
+briefings retain their stored content but use the new display labels and order.
+Newly generated briefings use the revised emphasis. The saved JSON section keys
+remain compatible: `Takeaway` displays as **Summary and key takeaways**,
+`Engineering relevance` as **Real-world use cases**, and `Adoption and tradeoffs`
+as **Practical uses and tradeoffs**.
 
 The model selector lists models installed on the configured Ollama server.
 **Configured default** uses `CORPUS_MODEL`. The selected model is saved with the
@@ -55,13 +85,13 @@ keeps the article's saved model.
 
 The default list shows unread, unrated articles. Completed briefings have
 **Mark read** and **1–5 rating** controls. Either action removes the article from
-the unread list; rating also marks it read. **Search all saved articles** includes
-reviewed articles, and an empty search browses all saved entries. **Show unread**
+the unread list; rating also marks it read. **All saved** includes reviewed
+articles, and Search finds matching articles across the library. **Unread**
 returns to the default list. Reviewing an article preserves its summary and source
 text.
 
-Corpus lists and article details show the publication date. **Search all saved
-articles** sorts by publication date descending, including keyword searches;
+Corpus lists and article details show the publication date. **All saved** and
+search results sort by publication date descending, including keyword searches;
 unknown dates appear last, with saved time and article ID breaking ties. The
 unread view retains its existing saved-time/relevance ordering. HTML dates come
 from publication metadata, preferring the original publication over modification
@@ -85,11 +115,16 @@ Before a new inference call, the worker reserves its configured timeout plus
 30 seconds within the processing window. If there is insufficient time, the
 article returns to the queue. Completed evidence chunks are checkpointed by
 article, model, prompt version, and prompt hash, so retries and later batches can
-reuse them. Condensation and final writing may repeat if interrupted. Final writing detects
+reuse them. Condensation is also checkpointed; final writing may repeat if
+interrupted. Final writing detects
 incomplete Ollama responses and validates the complete JSON structure. A truncated,
 malformed, or invalid briefing gets one fresh, more concise writing attempt using
 the same evidence notes. Each call still reserves time within the processing
-window; incomplete responses are never saved as completed briefings. Persistent
+window; incomplete responses are never saved as completed briefings. Evidence and
+condensation calls are checkpointed using the model, prompt version, prompt content,
+and generation options. Upgrading from the earlier prompt-only hashes may recompute
+older evidence once; existing checkpoint rows are preserved. Incomplete outputs
+are never cached. Persistent
 failures remain visible for retry. `CORPUS_FINAL_NUM_PREDICT` controls the output
 token budget for final writing; restart the worker after changing it.
 
@@ -129,7 +164,7 @@ host quarantines the article; an HTTP downgrade, credentials, nonstandard port, 
 private destination fails validation. Existing queued articles are checked when
 processed. Previously completed briefings remain available.
 
-To approve a source, select **Review sources to release** in the Corpus list.
+To approve a source, open the article marked **Approval needed** in the Corpus list.
 The article detail displays the original and blocked hostnames. **Trust sources
 and release** saves these exact hostnames in `corpus_sources`, clears this article's
 quarantine, and queues a new attempt in one transaction. Approvals apply to future

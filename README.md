@@ -1,15 +1,32 @@
 # Lalaland
 
-Two local research agents with a shared browser dashboard:
+![Three research agents exchanging news, papers, and ideas in LALA Land](docs/images/lalaland-agents.png)
+
+Three local research agents with a shared browser dashboard; LA-3 is optional:
 
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
-- **LA-2 — Research corpus:** queues paper/article URLs and produces engineering deep dives from extracted full text.
+- **LA-2 — Research corpus:** queues paper/article URLs and produces readable summaries, key takeaways, real-world use cases, and practical uses from extracted full text.
+- **LA-3 — Knowledge assistant (optional):** searches indexed RSS summaries and corpus research, returning evidence chunks or a synthesized answer with citations.
 
-Both use Ollama for inference, Temporal for durable processing, and PostgreSQL for
-storage. Optional [Lassy integration](docs/knowledge.md) indexes saved content for
-shared hybrid retrieval.
+The platform uses Ollama for inference, Temporal for durable background processing,
+and PostgreSQL for storage. LA-3 adds [Lassy integration](docs/knowledge.md) for
+shared hybrid retrieval. It is disabled by default; LA-1 and LA-2 run without Lassy.
 
-## Quickstart with Docker
+## Place in the local stack
+
+[local-agent-environment](../local-agent-environment/README.md) is the entry point
+for management links, service recovery and the port catalog. In the managed local
+installation, [agent-platform-gitops](../agent-platform-gitops/README.md) deploys
+Lalaland and Lassy through Argo. Open the [dashboard](http://127.0.0.1:8081/) or
+[API docs](http://127.0.0.1:8000/docs); use [image releases](docs/releases.md) to
+update that deployment. A Compose rebuild does not update Argo's selected images.
+
+Lalaland calls [Lassy](../lassy/README.md) directly when LA-3 is enabled. The
+[retrieval MCP adapter](../local-mcp-server/README.md) is for other MCP clients;
+Lalaland does not require it. [Babar](../babar/README.md) is separate application
+memory and is not currently connected to these research agents.
+
+## Standalone/development quickstart with Docker
 
 Run commands from the repository root. You need Docker Compose and existing
 PostgreSQL, Ollama, and Temporal services. Create the application database and the
@@ -19,7 +36,7 @@ Temporal `lalaland` namespace if missing; Compose starts only the application.
 cp -n .env.example .env             # Preserve any existing configuration
 # Edit .env: database credentials, service addresses, models, and ports.
 # Models must already be installed in Ollama; pull configured models as needed:
-ollama pull granite4.2:3b            # Current default for both agents
+ollama pull granite4.2:3b            # Current default for all three agents
 
 docker compose up -d --build
 ```
@@ -32,7 +49,7 @@ The worker must be running for ingestion and summarization to execute.
 Use `docker-compose` in place of `docker compose` if only the standalone CLI is
 installed.
 
-## Quickstart without Docker
+## Standalone/development quickstart without Docker
 
 Use Python **3.13.16** and uv. Native processes read exported environment
 variables rather than loading `.env`. Configure the same database, model, and
@@ -59,19 +76,42 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
 
 ## Use the agents
 
-1. Add RSS feeds in **Sources**, then choose **Run now** and review **Inbox**.
+1. Add public HTTP(S) RSS feeds in **Sources**, then open **Inbox**, choose **Pull latest**, and review the briefings.
+   The pull starts in the background; the dashboard reports its result without holding the request open.
 2. In **Corpus**, submit an arXiv, public PDF, or HTML article URL. Choose
    **Run queued articles now**, or wait for the overnight batch (default
    03:00–05:00 America/Detroit). Submission alone does not start inference.
-3. Read or rate results; use search to find reviewed material later.
+3. Read or rate results; use search to find reviewed material and rate RSS items after reading them.
+   Inbox and historical results are paginated.
+4. With LA-3 enabled, open **Knowledge** and enter a question. Choose **Answer** for a cited response or **Source excerpts** to inspect the evidence.
+   Filter to RSS, corpus, or both; **Search options** contains the answer model and excerpt limit.
+   The model dropdown lists installed Ollama models and defaults to `knowledge_model` in `backend/config.py`.
+
+Choose **Appearance** below the sidebar navigation to switch between **Dark**
+(warm charcoal and sage), **Light** (soft ivory and sage), or **Use system setting**.
+The choice applies across every view and is saved in your browser. Dark remains
+the default; system mode follows your device's light/dark preference.
 
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
-domains enter quarantine. Select **Review sources to release**, then **Trust sources
+domains enter quarantine. Open the article marked **Approval needed**, then choose **Trust sources
 and release** to approve the displayed hostnames and queue the article.
 PDF processing uses extracted text; it does not interpret figures or scanned pages.
 See [agent behavior and source policies](docs/agents.md) for details.
 
-## Rebuild, restart, and check
+To enable LA-3, configure both backend and worker with `KNOWLEDGE_ENABLED=true`
+and `KNOWLEDGE_SERVICE_URL` pointing to Lassy's base URL, then rebuild/restart.
+Use Lassy's base URL without `/query`; existing indexes must follow its
+[schema upgrade instructions](../lassy/docs/documents.md) before a new Lassy image
+is deployed. Set `KNOWLEDGE_MODEL` to override the default summary model independently of LA-1
+and LA-2. Follow [Lassy setup and backfill](docs/knowledge.md) to index existing
+records. Knowledge sync runs daily at 07:00 America/Detroit by default; its
+schedule is configurable. Leave the feature disabled for a standalone deployment.
+
+## Rebuild, restart, and check a standalone instance
+
+For an Argo-owned installation, follow the [release guide](docs/releases.md) and
+[managed recovery](../local-agent-environment/docs/restart-recovery.md) instead.
+Do not start another instance against the same database and Temporal task queue.
 
 ```bash
 docker compose up -d --build        # Rebuild and apply application changes
@@ -89,6 +129,12 @@ uv run --locked --extra dev pytest
 
 Tests use disposable PostgreSQL databases and an ephemeral Temporal test server;
 see [validation prerequisites](docs/development.md) before running them.
+
+RSS processing is best effort: unavailable feeds, failed summaries, and work beyond
+an individual source's ten-minute budget may be skipped. No recovery queue is kept.
+Interactive model requests wait up to 30 seconds for inference by default; busy
+knowledge queries suggest retrying or using **Source excerpts**. Existing RSS schedule timing
+is preserved when restarting or upgrading.
 
 ## Reference
 

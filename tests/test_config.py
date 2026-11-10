@@ -23,6 +23,10 @@ def test_missing_environment_uses_settings_defaults(monkeypatch):
     ('KNOWLEDGE_SCHEDULE_HOUR', 'knowledge_schedule_hour', '9', 9),
     ('KNOWLEDGE_SCHEDULE_MINUTE', 'knowledge_schedule_minute', '30', 30),
     ('KNOWLEDGE_SCHEDULE_TIMEZONE', 'knowledge_schedule_timezone', 'UTC', 'UTC'),
+    ('KNOWLEDGE_MODEL', 'knowledge_model', 'custom-agent', 'custom-agent'),
+    ('KNOWLEDGE_ENABLED', 'knowledge_enabled', 'true', True),
+    ('KNOWLEDGE_AGENT_TIMEOUT_SECONDS', 'knowledge_agent_timeout_seconds', '180', 180),
+    ('KNOWLEDGE_AGENT_INSTRUCTIONS', 'knowledge_agent_instructions', 'Compare findings.', 'Compare findings.'),
     ('CORPUS_FINAL_TIMEOUT_SECONDS', 'corpus_final_timeout_seconds', '600', 600),
 ])
 def test_environment_overrides_keep_field_types(monkeypatch, name, field, value, expected):

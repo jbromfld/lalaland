@@ -9,6 +9,8 @@ from temporalio.worker import Worker
 
 from backend.config import load_settings
 from backend.db import initialize_database
+from backend.telemetry import setup_telemetry
+from opentelemetry import trace
 from backend.temporal.knowledge import KnowledgeSyncWorkflow, sync_knowledge
 from backend.temporal.activities import list_enabled_sources, process_source
 from backend.temporal.client import TASK_QUEUE, temporal_address, temporal_namespace
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
+    setup_telemetry(load_settings().service_name + '-worker')
     initialize_database(load_settings())
     client = await Client.connect(temporal_address(), namespace=temporal_namespace())
     logger.info("Connected to Temporal at %s, task queue %s", temporal_address(), TASK_QUEUE)
@@ -33,7 +36,10 @@ async def main() -> None:
             activities=[sync_knowledge, list_enabled_sources, process_source, extract_article, summarize_article, fail_article, defer_article, prepare_nightly_batch],
             activity_executor=activity_executor,
         )
-        await worker.run()
+        try:
+            await worker.run()
+        finally:
+            trace.get_tracer_provider().shutdown()
 
 
 if __name__ == "__main__":

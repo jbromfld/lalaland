@@ -22,8 +22,9 @@ model selection.
 | `OLLAMA_BASE_URL` | Shared Ollama server | `http://127.0.0.1:11434` |
 | `OLLAMA_MODEL` | LA-1 RSS model | `granite4.2:3b` |
 | `OLLAMA_TIMEOUT_SECONDS` | LA-1 inference timeout | `120` |
+| `INFERENCE_QUEUE_TIMEOUT_SECONDS` | Maximum RSS/knowledge wait for the inference lock | `30` |
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | LA-1 daily start | `6` / `0` |
-| `SCHEDULE_TIMEZONE` | LA-1 schedule timezone | `local` (see below) |
+| `SCHEDULE_TIMEZONE` | LA-1 schedule timezone | `UTC` (see below) |
 | `CORPUS_MODEL` | LA-2 default model | `granite4.2:3b` |
 | `CORPUS_TRUSTED_DOMAINS` | LA-2 trusted domains and their subdomains | `arxiv.org,neurips.cc` |
 | `CORPUS_SCHEDULE_HOUR` / `CORPUS_END_HOUR` | LA-2 overnight window | `3` / `5` |
@@ -31,23 +32,36 @@ model selection.
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |
 | `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout per call | `900` |
 | `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
+| `KNOWLEDGE_ENABLED` | Opt in to Lassy knowledge sync, search, and LA-3 | `false` |
+| `KNOWLEDGE_SERVICE_URL` | Lassy base URL; required when enabling knowledge | unset |
 | `KNOWLEDGE_SCHEDULE_HOUR` / `KNOWLEDGE_SCHEDULE_MINUTE` | Daily knowledge sync start | `7` / `0` |
 | `KNOWLEDGE_SCHEDULE_TIMEZONE` | Knowledge sync timezone | `America/Detroit` |
+| `KNOWLEDGE_MODEL` | LA-3 knowledge answer model (UI default) | `granite4.2:3b` |
+| `KNOWLEDGE_AGENT_TIMEOUT_SECONDS` | LA-3 generation timeout | `120` |
+| `KNOWLEDGE_AGENT_INSTRUCTIONS` | LA-3 answer style instructions | Answer the question concisely, explaining the main findings and relevant limitations. |
 | `TEMPORAL_ADDRESS` | Temporal endpoint | `host.docker.internal:30733` |
 | `TEMPORAL_NAMESPACE` | Temporal namespace | `lalaland` |
 
-For LA-1, `SCHEDULE_TIMEZONE=local` leaves Temporal's timezone unset, so the default
-06:00 schedule runs in **UTC**: 02:00 Detroit during daylight saving time and 01:00
-during standard time. Use an explicit IANA timezone when creating a schedule if
-you want a fixed local hour. Startup creates the LA-1 schedule only if missing;
-changing its environment settings does not update an existing schedule.
+For LA-1, the default timezone is explicitly **UTC**, preserving the former
+`local` setting's effective behavior: 06:00 UTC is 02:00 Detroit during daylight
+saving time and 01:00 during standard time. Legacy `SCHEDULE_TIMEZONE=local` is
+still accepted as UTC. Startup creates the LA-1 schedule only if missing; it
+never changes an existing schedule's timing. Use an explicit IANA timezone when
+creating a schedule if you want a fixed local hour.
+
+Timeouts and output budgets must be positive. Schedule hours, minutes, processing
+windows, and IANA timezones are validated when settings are constructed. Corpus
+model timeouts must remain below 1,200 seconds. RSS and knowledge stop waiting for
+the model after `INFERENCE_QUEUE_TIMEOUT_SECONDS`; corpus batches keep their
+existing deadline and deferral mechanism instead.
 
 LA-2 uses its explicit timezone and updates its own schedule at startup. Its start
 and end hours must fall on the same day, with end after start. Keep both corpus
 inference timeouts below the worker's 1,200-second heartbeat interval.
 
 Knowledge sync runs daily at 07:00 America/Detroit by default when
-`KNOWLEDGE_SERVICE_URL` is configured. Set its hour (0–23), minute (0–59), and IANA
+`KNOWLEDGE_ENABLED=true` and `KNOWLEDGE_SERVICE_URL` are configured on backend and
+worker. Set its hour (0–23), minute (0–59), and IANA
 timezone in `Settings` or through the environment variables above. Restart the
 backend to update an existing `knowledge-sync-schedule`, including the previous
 one-minute interval.

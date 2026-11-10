@@ -20,8 +20,8 @@ BEGIN
                 RETURN NEW;
             END IF;
         ELSE
-            IF ROW(NEW.article_text,NEW.sections,NEW.briefing,NEW.title,NEW.metadata,NEW.state,NEW.canonical_url)
-                IS NOT DISTINCT FROM ROW(OLD.article_text,OLD.sections,OLD.briefing,OLD.title,OLD.metadata,OLD.state,OLD.canonical_url) THEN
+            IF ROW(NEW.article_text,NEW.sections,NEW.briefing,NEW.title,NEW.metadata,NEW.state,NEW.canonical_url,NEW.published_date)
+                IS NOT DISTINCT FROM ROW(OLD.article_text,OLD.sections,OLD.briefing,OLD.title,OLD.metadata,OLD.state,OLD.canonical_url,OLD.published_date) THEN
                 RETURN NEW;
             END IF;
         END IF;
