@@ -21,10 +21,9 @@ Lalaland and Lassy through Argo. Open the [dashboard](http://127.0.0.1:8081/) or
 [API docs](http://127.0.0.1:8000/docs); use [image releases](docs/releases.md) to
 update that deployment. A Compose rebuild does not update Argo's selected images.
 
-Lalaland calls [Lassy](../lassy/README.md) directly when LA-3 is enabled. The
-[retrieval MCP adapter](../local-mcp-server/README.md) is for other MCP clients;
-Lalaland does not require it. [Babar](../babar/README.md) is separate application
-memory and is not currently connected to these research agents.
+Lalaland calls [Lassy](../lassy/README.md) over HTTP when LA-3 is enabled. MCP
+hosts connect directly to Lassy's native stdio server. [Babar](../babar/README.md)
+is separate application memory and is not currently connected to these agents.
 
 ## Standalone/development quickstart with Docker
 

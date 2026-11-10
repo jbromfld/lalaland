@@ -18,7 +18,7 @@ def retrieval(monkeypatch):
     monkeypatch.setattr(knowledge_api, 'load_settings', lambda: settings)
     result = {'chunks': [{'citation': '[1]', 'content': 'Measured improvement.',
                           'title': 'Research', 'url': 'https://example.org', 'score': 0.5}],
-              'query_id': 'example'}
+              'metrics': {'latency_ms': 1.0, 'latency_rerank_ms': 0.0, 'chunks_retrieved': 1}}
     response = Mock()
     response.json.return_value = result
     post = Mock(return_value=response)
