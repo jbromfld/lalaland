@@ -87,6 +87,11 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
    Filter to RSS, corpus, or both; **Search options** contains the answer model and excerpt limit.
    The model dropdown lists installed Ollama models and defaults to `knowledge_model` in `backend/config.py`.
 
+Choose **Appearance** below the sidebar navigation to switch between **Dark**
+(warm charcoal and sage), **Light** (soft ivory and sage), or **Use system setting**.
+The choice applies across every view and is saved in your browser. Dark remains
+the default; system mode follows your device's light/dark preference.
+
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
 domains enter quarantine. Open the article marked **Approval needed**, then choose **Trust sources
 and release** to approve the displayed hostnames and queue the article.

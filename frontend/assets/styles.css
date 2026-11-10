@@ -37,6 +37,35 @@
   background: var(--background);
   color: var(--text);
 }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f4f2e9;
+  --surface: #faf9f3;
+  --surface-reading: #fffef8;
+  --surface-raised: #e9ecdf;
+  --surface-inset: #f0f1e8;
+  --border: #c3cab7;
+  --border-strong: #7c896f;
+  --heading: #293326;
+  --text: #354130;
+  --muted: #58634f;
+  --accent: #526943;
+  --accent-ink: #fffef8;
+  --accent-soft: #e0e9d6;
+  --link: #415e32;
+  --progress-text: #3e5c50;
+  --progress-bg: #e2ebe5;
+  --progress-border: #82998a;
+  --success-text: #3d5a2b;
+  --success-bg: #e6eedc;
+  --success-border: #8a9e77;
+  --warning-text: #72531f;
+  --warning-bg: #f1e8d4;
+  --warning-border: #a18a58;
+  --error-text: #82473a;
+  --error-bg: #f3e2dc;
+  --error-border: #b78c7f;
+}
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; background: var(--background); }
@@ -47,6 +76,8 @@ main { max-width: 1320px; margin: 0 auto; padding: var(--space-3) 20px 48px; }
 .brand h1 { margin: 0 0 5px; color: var(--heading); font-size: 1.35rem; font-weight: 650; letter-spacing: -0.035em; }
 .brand p { margin: 0; color: var(--muted); font-size: 0.85rem; }
 .nav-list { display: grid; gap: 6px; }
+.theme-control { margin: 24px 12px 0; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
+.theme-control select { margin-top: 2px; font-size: 0.82rem; }
 button { border: 1px solid transparent; border-radius: 9px; padding: 10px 15px; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; background: var(--surface-raised); color: var(--text); min-height: 42px; }
 button:hover:not(:disabled) { filter: brightness(1.08); }
 button:disabled { opacity: 0.5; cursor: default; }
@@ -152,6 +183,7 @@ summary { cursor: pointer; padding: 6px 0; color: var(--muted); font-size: 0.85r
   .nav-list { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
   .nav-button { width: auto; gap: 10px; flex-shrink: 0; }
   .nav-divider { display: none; }
+  .theme-control { max-width: 260px; margin: 8px 0 0; padding-top: 12px; }
 }
 @media (max-width: 600px) {
   main { padding: 16px 12px 32px; }
