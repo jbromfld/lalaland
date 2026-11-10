@@ -18,8 +18,9 @@ RSS briefings, corpus processing, and their saved-record searches remain availab
 The Knowledge tab stays hidden, and knowledge query/model endpoints return a clear
 disabled response without contacting Lassy or Ollama.
 
-1. For an existing Lassy database, apply `lassy/db/002_documents.sql` and
-   `lassy/db/003_practical.sql` before deploying the updated Lassy API. Follow
+1. For an existing Lassy database, apply `lassy/db/002_documents.sql`,
+   `lassy/db/003_practical.sql`, and `lassy/db/004_mcp.sql` before deploying the
+   updated API. Verify and explicitly adopt the index model identity. Follow
    [Lassy's upgrade guide](../../lassy/docs/documents.md); do not reset the index.
    New databases use Lassy's complete `db/init.sql`.
 2. Set `KNOWLEDGE_ENABLED=true` and `KNOWLEDGE_SERVICE_URL` to lassy's **base URL**,
@@ -122,11 +123,12 @@ generation and returns a no-evidence message. `GET /api/knowledge/models` return
 the configured default, installed models, and discovery warnings.
 
 Existing Inbox/Corpus record search remains a database view. Clients can also call
-[Lassy](../../lassy/README.md) directly or use the optional
-[retrieval MCP adapter](../../local-mcp-server/README.md). The adapter is not in
-Lalaland's request path. [Babar](../../babar/README.md) is separate application
-memory; no automatic memory writes/synchronization are implemented here.
-Summaries reflect the top-k
+[Lassy](../../lassy/README.md) through native stdio MCP; the separate adapter is retired.
+Lalaland continues using Lassy's HTTP API. Retrieval returns cited chunks and
+transient timing without feedback IDs or stored query history.
+
+[Babar](../../babar/README.md) is separate application memory; no automatic
+memory writes/synchronization are implemented here. Summaries reflect top-k
 evidence, not an exhaustive review; verify claims against the displayed sources.
 Publication-date range filters and exhaustive “all matching articles” enumeration
 remain subsequent features.
