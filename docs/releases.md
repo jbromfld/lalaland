@@ -2,11 +2,13 @@
 
 Application source and Docker builds stay in this repository. Cluster deployment
 configuration lives in [agent-platform-gitops](../../agent-platform-gitops/README.md).
-Laptop infrastructure lives in `local-agent-environment`.
+Laptop infrastructure and [management links](../../local-agent-environment/README.md)
+live in `local-agent-environment`. These instructions update the Argo-managed
+installation; Compose rebuilds affect only separately run Compose instances.
 
 ```bash
 # Start the local registry through local-agent-environment first.
-python3 scripts/publish_images.py --registry 127.0.0.1:5001
+python3 scripts/publish_images.py  # Default registry 127.0.0.1:5001
 ```
 
 Use Python 3.13+, Docker Buildx, and the Colima context. The publisher archives
@@ -16,23 +18,33 @@ Uncommitted edits are excluded. Tests remain a separate prerequisite to release.
 Use `--context` and `--registry` for another authenticated build environment;
 registry login/credentials remain external to this script.
 
-Promote the release in the dedicated GitOps repository:
+Apply any required database upgrade before deploying the new code. Lalaland
+applies its additive schema at startup; upgrading Lassy separately requires its
+[explicit migration/backfill procedure](../../lassy/docs/documents.md).
+
+From the **agent-platform-gitops repository**, promote the release:
 
 ```bash
 python3 scripts/promote.py --environment local --release ../lalaland/build/release.json
 python3 scripts/validate.py
 ```
 
-Review, commit, and push the environment change. Argo deploys the selected image
-digests; it does not build the images. An active environment requires automatic
-sync enabled in its Application policy, or an explicit manual sync. The initial
-bootstrap on a Compose-owned laptop starts paused until explicit cutover. Reuse image artifacts for promotion; rebuilding
-source is not a substitute for preserving an existing digest.
+Review, commit, and push the environment change through the normal merge workflow
+onto `main`. Argo deploys the selected digests after reconciliation; it does not
+build images. Check `local-lalaland` in [Argo CD](https://127.0.0.1:8443/) after opening
+its [forward](../../local-agent-environment/docs/ports.md#open-argo-cd), or use the
+[environment status commands](../../local-agent-environment/README.md#open-and-inspect-the-local-stack).
+Compare the observed Git revision and running image digests with your release
+record. A successful build/push is not evidence that reconciliation has finished.
+
+The chart uses one replica and `Recreate` updates. Expect a brief interruption
+while old processes exit and new workers/models become ready. Routine releases
+need no new bootstrap/cutover. Reuse image artifacts for promotion; do not rebuild
+to recover a previously selected digest.
 
 After promotion, reload any open dashboard tabs to load the new frontend code.
 The HTML uses `Cache-Control: no-cache` so reloads revalidate the page with the
 server. An already-open tab keeps running its loaded code until reloaded.
 If a UI change appears missing, compare the running deployment image digests
 with `build/release.json` and check the HTML served at the dashboard URL before
-rebuilding. Publication dates appear in **Corpus**, including **Search all saved
-articles**; records without an extracted publication date display **Unknown**.
+rebuilding. Publication dates appear in **Corpus**, including **All saved**; records without an extracted publication date display **Unknown**.

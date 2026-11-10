@@ -12,7 +12,21 @@ The platform uses Ollama for inference, Temporal for durable background processi
 and PostgreSQL for storage. LA-3 adds [Lassy integration](docs/knowledge.md) for
 shared hybrid retrieval. It is disabled by default; LA-1 and LA-2 run without Lassy.
 
-## Quickstart with Docker
+## Place in the local stack
+
+[local-agent-environment](../local-agent-environment/README.md) is the entry point
+for management links, service recovery and the port catalog. In the managed local
+installation, [agent-platform-gitops](../agent-platform-gitops/README.md) deploys
+Lalaland and Lassy through Argo. Open the [dashboard](http://127.0.0.1:8081/) or
+[API docs](http://127.0.0.1:8000/docs); use [image releases](docs/releases.md) to
+update that deployment. A Compose rebuild does not update Argo's selected images.
+
+Lalaland calls [Lassy](../lassy/README.md) directly when LA-3 is enabled. The
+[retrieval MCP adapter](../local-mcp-server/README.md) is for other MCP clients;
+Lalaland does not require it. [Babar](../babar/README.md) is separate application
+memory and is not currently connected to these research agents.
+
+## Standalone/development quickstart with Docker
 
 Run commands from the repository root. You need Docker Compose and existing
 PostgreSQL, Ollama, and Temporal services. Create the application database and the
@@ -35,7 +49,7 @@ The worker must be running for ingestion and summarization to execute.
 Use `docker-compose` in place of `docker compose` if only the standalone CLI is
 installed.
 
-## Quickstart without Docker
+## Standalone/development quickstart without Docker
 
 Use Python **3.13.16** and uv. Native processes read exported environment
 variables rather than loading `.env`. Configure the same database, model, and
@@ -81,12 +95,18 @@ See [agent behavior and source policies](docs/agents.md) for details.
 
 To enable LA-3, configure both backend and worker with `KNOWLEDGE_ENABLED=true`
 and `KNOWLEDGE_SERVICE_URL` pointing to Lassy's base URL, then rebuild/restart.
-Set `KNOWLEDGE_MODEL` to override the default summary model independently of LA-1
+Use Lassy's base URL without `/query`; existing indexes must follow its
+[schema upgrade instructions](../lassy/docs/documents.md) before a new Lassy image
+is deployed. Set `KNOWLEDGE_MODEL` to override the default summary model independently of LA-1
 and LA-2. Follow [Lassy setup and backfill](docs/knowledge.md) to index existing
 records. Knowledge sync runs daily at 07:00 America/Detroit by default; its
 schedule is configurable. Leave the feature disabled for a standalone deployment.
 
-## Rebuild, restart, and check
+## Rebuild, restart, and check a standalone instance
+
+For an Argo-owned installation, follow the [release guide](docs/releases.md) and
+[managed recovery](../local-agent-environment/docs/restart-recovery.md) instead.
+Do not start another instance against the same database and Temporal task queue.
 
 ```bash
 docker compose up -d --build        # Rebuild and apply application changes
