@@ -1,7 +1,6 @@
-# Lalaland
-
 ![Three research agents exchanging news, papers, and ideas in LALA Land](docs/images/lalaland-agents.png)
 
+# Lalaland
 Three local research agents with a shared browser dashboard; LA-3 is optional:
 
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
@@ -87,7 +86,9 @@ uses uv and Docker Compose for builds; it has no Bazel targets.
    The model dropdown lists installed Ollama models and defaults to `knowledge_model` in `backend/config.py`.
 
 Choose **Appearance** below the sidebar navigation to switch between **Dark**
-(warm charcoal and sage), **Light** (soft ivory and sage), or **Use system setting**.
+(warm charcoal and sage), **Light** (soft ivory and sage), **Blue contrast**
+(deep navy, bright blue accents, and higher-contrast text and borders), or
+**Use system setting**.
 The choice applies across every view and is saved in your browser. Dark remains
 the default; system mode follows your device's light/dark preference.
 

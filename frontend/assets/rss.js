@@ -211,7 +211,7 @@ export function initRss() {
         method:'POST', body:JSON.stringify({rating:Number(button.dataset.rating)})
       });
       await loadHistory(); await loadInbox();
-      setStatus('Rating saved.');
+      setStatus('Rating saved.', {timeoutMs: 4000, viewId: 'search-view'});
     } catch (error) { setStatus(error.message); }
     finally { button.disabled = false; }
   });
@@ -235,13 +235,10 @@ export function initRss() {
     renderHtml(researchNode, items.map(item => entryMarkup(item)).join(''));
   }
 
-  async function refreshInbox(message = "") {
+  async function refreshInbox(message = "", statusOptions = {}) {
     try {
-      if (message) {
-        setStatus(message);
-      }
       await loadInbox();
-      setStatus(message);
+      setStatus(message, statusOptions);
     } catch (error) {
       setStatus(error.message);
     }
@@ -280,7 +277,7 @@ export function initRss() {
           method: "POST",
           body: JSON.stringify({ rating: Number(rating) })
         });
-        await refreshInbox(`Recorded rating ${rating}.`);
+        await refreshInbox(`Recorded rating ${rating}.`, {timeoutMs: 4000, viewId: 'inbox-view'});
       }
     } catch (error) {
       setStatus(error.message);

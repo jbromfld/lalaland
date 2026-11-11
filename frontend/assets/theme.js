@@ -2,7 +2,7 @@
 // intentionally synchronous. The application itself continues to use ES modules.
 (() => {
   const key = 'lalaland.appearance';
-  const normalize = value => ['dark', 'light', 'system'].includes(value) ? value : 'dark';
+  const normalize = value => ['dark', 'light', 'blue', 'system'].includes(value) ? value : 'dark';
   const system = window.matchMedia?.('(prefers-color-scheme: light)');
   let preference = 'dark';
   try { preference = normalize(window.localStorage.getItem(key)); }

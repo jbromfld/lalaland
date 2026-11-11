@@ -39,7 +39,7 @@ test('applies saved appearance before CSS and exposes a labelled choice', t => {
   assert.equal(ui.theme(), 'light');
   assert.equal(ui.control.value, 'light');
   assert.match(ui.control.labels[0].textContent, /Appearance/);
-  assert.deepEqual([...ui.control.options].map(option => option.value), ['dark','light','system']);
+  assert.deepEqual([...ui.control.options].map(option => option.value), ['dark','light','blue','system']);
 });
 
 test('keeps the existing dark default and ignores invalid stored values', t => {
@@ -50,12 +50,12 @@ test('keeps the existing dark default and ignores invalid stored values', t => {
 
 test('switches immediately, saves the preference, and restores it on reload', t => {
   const ui = page(t);
-  for (const value of ['light','dark','system']) {
+  for (const value of ['light','dark','blue','system']) {
     ui.choose(value);
     assert.equal(ui.window.localStorage.getItem(key), value);
     const reloaded = page(t, {stored:ui.window.localStorage.getItem(key)});
     assert.equal(reloaded.control.value, value);
-    assert.equal(reloaded.theme(), value === 'light' ? 'light' : 'dark');
+    assert.equal(reloaded.theme(), value === 'system' ? 'dark' : value);
   }
 });
 
@@ -72,6 +72,11 @@ test('follows system changes only when requested and retains system preference',
   ui.choose('dark');
   ui.system(true);
   assert.equal(ui.theme(), 'dark');
+  ui.choose('blue');
+  ui.system(false);
+  assert.equal(ui.theme(), 'blue');
+  ui.system(true);
+  assert.equal(ui.theme(), 'blue');
   ui.choose('system');
   assert.equal(ui.theme(), 'light');
 });
@@ -113,11 +118,13 @@ function contrast(a,b) {
   return (Math.max(light,dark) + .05) / (Math.min(light,dark) + .05);
 }
 
-test('both palettes keep reading text, actions, links and statuses readable', () => {
+test('all palettes keep reading text, actions, links and statuses readable', () => {
   const dark = palette(':root');
   const light = palette(':root\\[data-theme="light"\\]');
+  const blue = palette(':root\\[data-theme="blue"\\]');
   assert.deepEqual(Object.keys(light).sort(), Object.keys(dark).sort());
-  for (const [theme, colors] of [['dark',dark],['light',light]]) {
+  assert.deepEqual(Object.keys(blue).sort(), Object.keys(dark).sort());
+  for (const [theme, colors] of [['dark',dark],['light',light],['blue',blue]]) {
     const pairs = [];
     for (const background of ['--background','--surface','--surface-reading','--surface-raised','--surface-inset','--accent-soft']) {
       for (const text of ['--heading','--text','--muted','--link']) pairs.push([text,background]);
@@ -125,7 +132,13 @@ test('both palettes keep reading text, actions, links and statuses readable', ()
     pairs.push(['--accent-ink','--accent'], ['--progress-text','--accent-soft']);
     for (const tone of ['progress','success','warning','error']) pairs.push([`--${tone}-text`,`--${tone}-bg`]);
     for (const [foreground,background] of pairs) {
-      assert(contrast(colors[foreground],colors[background]) >= 4.5, `${theme}: ${foreground} on ${background}`);
+      assert(contrast(colors[foreground],colors[background]) >= (theme === 'blue' ? 7 : 4.5), `${theme}: ${foreground} on ${background}`);
     }
+  }
+  for (const background of ['--background','--surface','--surface-reading','--surface-raised','--surface-inset','--accent-soft']) {
+    for (const foreground of ['--border','--border-strong','--accent']) {
+      assert(contrast(blue[foreground],blue[background]) >= 3, `blue: ${foreground} on ${background}`);
+    }
+    assert(contrast(blue['--text'],blue[background]) > contrast(dark['--text'],dark[background]));
   }
 });

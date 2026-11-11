@@ -32,9 +32,11 @@ reinitialization and new connections; it does not restart running app services.
 The dashboard uses native ES modules and CSS under `frontend/assets/`. Shared
 color, surface, spacing, and status tokens are defined on `:root` in `styles.css`;
 reuse them across views. Dark uses warm charcoal and sage; light overrides the
-same color tokens with soft ivory surfaces. `theme.js` is a small synchronous bootstrap loaded before
+same color tokens with soft ivory surfaces. Blue contrast uses deep navy surfaces,
+bright blue accents, and stronger borders, with at least 7:1 contrast for reading
+text and 3:1 for control boundaries and focus indicators. `theme.js` is a small synchronous bootstrap loaded before
 CSS to apply the saved browser preference before paint; other application scripts
-remain native ES modules. Keep both palettes readable, including status badges,
+remain native ES modules. Keep all palettes readable, including status badges,
 Markdown code, inputs, and selected controls.
 No Node packages or bundler are required. Check JavaScript syntax with:
 
@@ -49,7 +51,7 @@ repository, with no frontend build step:
 
 ```bash
 npm install --prefix /tmp/lalaland-dom-tests --no-audit --no-fund jsdom@26
-NODE_PATH=/tmp/lalaland-dom-tests/node_modules node --experimental-vm-modules --test tests/test_markdown.mjs tests/test_theme.mjs
+NODE_PATH=/tmp/lalaland-dom-tests/node_modules node --experimental-vm-modules --test tests/test_*.mjs
 ```
 
 Verify pagination, mark-read followed by rating in Search, manual-job startup,
