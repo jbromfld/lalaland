@@ -1,5 +1,6 @@
 ![Three research agents exchanging news, papers, and ideas in LALA Land](docs/images/lalaland-agents.png)
 
+# Lalaland
 Three local research agents with a shared browser dashboard; LA-3 is optional:
 
 - **LA-1 — RSS briefing:** polls feeds and turns their summaries into short briefings.
