@@ -1,5 +1,3 @@
-# Lalaland
-
 ![Three research agents exchanging news, papers, and ideas in LALA Land](docs/images/lalaland-agents.png)
 
 Three local research agents with a shared browser dashboard; LA-3 is optional:
