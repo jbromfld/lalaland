@@ -17,11 +17,19 @@ export async function api(path, options = {}) {
   return response.json();
 }
 
-export function setStatus(message) {
+let statusTimer;
+
+export function setStatus(message, {timeoutMs = 0, viewId} = {}) {
+  if (viewId && !document.getElementById(viewId)?.classList.contains('is-active')) return;
+  clearTimeout(statusTimer);
   document.getElementById("status").textContent = message;
+  if (message && timeoutMs > 0) {
+    statusTimer = setTimeout(() => setStatus(''), timeoutMs);
+  }
 }
 
 export function setActiveView(viewId) {
+  setStatus('');
   document.querySelectorAll("[data-view-target]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.viewTarget === viewId);
     button.setAttribute("aria-current", button.dataset.viewTarget === viewId ? "page" : "false");
