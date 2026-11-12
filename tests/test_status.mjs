@@ -53,22 +53,23 @@ async function page(t, {beforeRate = async () => {}} = {}) {
   };
 }
 
-for (const view of ['inbox', 'search']) {
-  test(`${view} rating confirmation clears after four seconds and on navigation`, async t => {
+for (const [view, action, timeoutMs] of [['inbox', 'rate', 5000], ['inbox', 'dismiss', 5000], ['search', 'rate', 4000]]) {
+  test(`${view} ${action} confirmation clears after ${timeoutMs} ms and on navigation`, async t => {
     const ui = await page(t);
     ui.setActiveView(`${view}-view`);
     if (view === 'search') {
       ui.document.getElementById('history-results').innerHTML = '<button data-history-rate="item-1" data-rating="5">Rate</button>';
     }
-    const selector = view === 'inbox' ? '[data-action="rate"][data-rating="5"]' : '[data-history-rate]';
-    const rate = async () => { ui.document.querySelector(selector).click(); await flush(); };
-    await rate();
-    assert.match(ui.status(), /Recorded rating 5|Rating saved/);
-    ui.advance(3999);
+    const selector = view === 'inbox' ? `[data-action="${action}"]${action === 'rate' ? '[data-rating="5"]' : ''}` : '[data-history-rate]';
+    const act = async () => { ui.document.querySelector(selector).click(); await flush(); };
+    await act();
+    assert.match(ui.status(), /Recorded rating 5|Rating saved|Dismissed item/);
+    assert.equal(ui.document.querySelector('.sidebar').lastElementChild.id, 'status');
+    ui.advance(timeoutMs - 1);
     assert.notEqual(ui.status(), '');
     ui.advance(1);
     assert.equal(ui.status(), '');
-    await rate();
+    await act();
     assert.notEqual(ui.status(), '');
     ui.setActiveView('corpus-view');
     assert.equal(ui.status(), '');

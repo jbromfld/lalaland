@@ -92,6 +92,10 @@ Choose **Appearance** below the sidebar navigation to switch between **Dark**
 The choice applies across every view and is saved in your browser. Dark remains
 the default; system mode follows your device's light/dark preference.
 
+Status banners appear at the bottom of the left menu, below **Appearance**.
+The inbox confirmations **Dismissed item.** and **Recorded rating** disappear
+automatically after five seconds.
+
 LA-2 defaults to trusting `arxiv.org`, `neurips.cc`, and their subdomains. Other
 domains enter quarantine. Open the article marked **Approval needed**, then choose **Trust sources
 and release** to approve the displayed hostnames and queue the article.

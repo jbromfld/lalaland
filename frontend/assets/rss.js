@@ -268,7 +268,7 @@ export function initRss() {
     try {
       if (action === "dismiss") {
         await api(`/api/inbox/${id}/dismiss`, { method: "POST" });
-        await refreshInbox("Dismissed item.");
+        await refreshInbox("Dismissed item.", {timeoutMs: 5000, viewId: 'inbox-view'});
       } else if (action === "read") {
         await api(`/api/inbox/${id}/read`, { method: "POST" });
         await refreshInbox("Marked as read. You can rate it in Search.");
@@ -277,7 +277,7 @@ export function initRss() {
           method: "POST",
           body: JSON.stringify({ rating: Number(rating) })
         });
-        await refreshInbox(`Recorded rating ${rating}.`, {timeoutMs: 4000, viewId: 'inbox-view'});
+        await refreshInbox(`Recorded rating ${rating}.`, {timeoutMs: 5000, viewId: 'inbox-view'});
       }
     } catch (error) {
       setStatus(error.message);
