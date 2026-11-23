@@ -55,6 +55,9 @@ model timeouts must remain below 1,200 seconds. RSS and knowledge stop waiting f
 the model after `INFERENCE_QUEUE_TIMEOUT_SECONDS`; corpus batches keep their
 existing deadline and deferral mechanism instead.
 
+Corpus evidence extraction and condensation use a 2,048-token output budget per
+call. Final structured briefings use `CORPUS_FINAL_NUM_PREDICT`.
+
 LA-2 uses its explicit timezone and updates its own schedule at startup. Its start
 and end hours must fall on the same day, with end after start. Keep both corpus
 inference timeouts below the worker's 1,200-second heartbeat interval.

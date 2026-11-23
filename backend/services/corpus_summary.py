@@ -39,7 +39,7 @@ def installed_models(settings):
 
 def generation_options(settings, structured=False):
     return {'temperature':0.2, 'num_ctx':16384,
-            'num_predict':settings.corpus_final_num_predict if structured else 768}
+            'num_predict':settings.corpus_final_num_predict if structured else 2048}
 
 
 @traceable(
@@ -70,11 +70,12 @@ def generate(settings, model, prompt, structured=False):
     if not isinstance(raw, str):
         raise ValueError('Ollama returned an invalid generation response')
     if body.get('done_reason') == 'length' or body.get('done') is False:
+        stage = 'final briefing' if structured else 'evidence extraction or condensation'
         raise IncompleteGenerationError(
             f"Ollama returned an incomplete response (done_reason={body.get('done_reason')!r}, "
             f"generated_tokens={body.get('eval_count')}, "
             f"output_budget={payload['options']['num_predict']}). "
-            "For final briefings, increase CORPUS_FINAL_NUM_PREDICT or request a shorter briefing."
+            f"The {stage} output budget was exhausted."
         )
     result = _remove_reasoning(raw)
     if not result:
