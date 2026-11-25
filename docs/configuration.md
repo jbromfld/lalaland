@@ -31,6 +31,7 @@ model selection.
 | `CORPUS_SCHEDULE_TIMEZONE` | LA-2 schedule timezone | `America/Detroit` |
 | `CORPUS_OLLAMA_TIMEOUT_SECONDS` | LA-2 evidence/condensation call timeout | `300` |
 | `CORPUS_FINAL_TIMEOUT_SECONDS` | LA-2 final writing timeout per call | `900` |
+| `CORPUS_EVIDENCE_NUM_PREDICT` | LA-2 evidence/condensation output token budget per call | `4096` |
 | `CORPUS_FINAL_NUM_PREDICT` | LA-2 final writing output token budget | `6144` |
 | `KNOWLEDGE_ENABLED` | Opt in to Lassy knowledge sync, search, and LA-3 | `false` |
 | `KNOWLEDGE_SERVICE_URL` | Lassy base URL; required when enabling knowledge | unset |
@@ -55,8 +56,8 @@ model timeouts must remain below 1,200 seconds. RSS and knowledge stop waiting f
 the model after `INFERENCE_QUEUE_TIMEOUT_SECONDS`; corpus batches keep their
 existing deadline and deferral mechanism instead.
 
-Corpus evidence extraction and condensation use a 2,048-token output budget per
-call. Final structured briefings use `CORPUS_FINAL_NUM_PREDICT`.
+Corpus evidence extraction and condensation use `CORPUS_EVIDENCE_NUM_PREDICT`
+tokens per call. Final structured briefings use `CORPUS_FINAL_NUM_PREDICT`.
 
 LA-2 uses its explicit timezone and updates its own schedule at startup. Its start
 and end hours must fall on the same day, with end after start. Keep both corpus

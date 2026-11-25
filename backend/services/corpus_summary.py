@@ -39,7 +39,7 @@ def installed_models(settings):
 
 def generation_options(settings, structured=False):
     return {'temperature':0.2, 'num_ctx':16384,
-            'num_predict':settings.corpus_final_num_predict if structured else 2048}
+            'num_predict':settings.corpus_final_num_predict if structured else settings.corpus_evidence_num_predict}
 
 
 @traceable(

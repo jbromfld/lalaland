@@ -24,6 +24,7 @@ class Settings:
     corpus_model: str = "granite4.2:3b"
     corpus_ollama_timeout_seconds: int = 300
     corpus_final_timeout_seconds: int = 900
+    corpus_evidence_num_predict: int = 4096
     corpus_final_num_predict: int = 6144
     corpus_schedule_hour: int = 3
     corpus_end_hour: int = 5
@@ -43,7 +44,8 @@ class Settings:
     def __post_init__(self):
         for name in ('ollama_timeout_seconds', 'inference_queue_timeout_seconds',
                      'corpus_ollama_timeout_seconds', 'corpus_final_timeout_seconds',
-                     'corpus_final_num_predict', 'knowledge_timeout_seconds',
+                     'corpus_evidence_num_predict', 'corpus_final_num_predict',
+                     'knowledge_timeout_seconds',
                      'knowledge_agent_timeout_seconds'):
             if getattr(self, name) <= 0:
                 raise ValueError(f'{name} must be positive')
@@ -118,6 +120,9 @@ def load_settings() -> Settings:
         )),
         corpus_final_timeout_seconds=int(os.getenv(
             "CORPUS_FINAL_TIMEOUT_SECONDS", str(defaults.corpus_final_timeout_seconds)
+        )),
+        corpus_evidence_num_predict=int(os.getenv(
+            "CORPUS_EVIDENCE_NUM_PREDICT", str(defaults.corpus_evidence_num_predict)
         )),
         corpus_final_num_predict=int(os.getenv(
             "CORPUS_FINAL_NUM_PREDICT", str(defaults.corpus_final_num_predict)
