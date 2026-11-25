@@ -228,9 +228,35 @@ def test_unicode_chunk_byte_budget():
     assert ''.join(p.split('\n',1)[1] for p in parts) == text
 
 
+def test_oversized_evidence_note_splits_without_losing_text_or_references():
+    note = 'Finding [page 1]. ' * 500
+    parts = summary.split_evidence_note(note)
+    assert len(parts) > 1
+    assert all(len(part.encode('utf-8')) <= summary.CONDENSATION_NOTE_BYTES for part in parts)
+    assert all('[page 1]' in part for part in parts)
+    header = 'Source references in this note: [page 1]\n'
+    assert ''.join(part.removeprefix(header) for part in parts) == note
+
+
+def test_condensation_retries_with_stricter_target_before_splitting():
+    calls = []
+    source = ['Finding [page 1]. ' * 180]
+
+    def generate(settings, model, prompt, structured=False):
+        calls.append(prompt)
+        if 'at most' in prompt:
+            return 'Short finding [page 1].'
+        return prompt.split('\n', 1)[1]
+
+    result = summary.condense_batch(Settings(), 'custom', source, generate)
+    assert result == ['Short finding [page 1].']
+    assert len(calls) == 2
+    assert 'less than half their current length' in calls[1]
+
+
 def test_nonshrinking_reduction_fails(monkeypatch):
     monkeypatch.setattr(summary,'generate',lambda *a,**k:'n'*11000)
-    with pytest.raises(ValueError,match='condense'):
+    with pytest.raises(ValueError,match='could not condense evidence without losing material'):
         summary.summarize(load_settings(),{'model':'custom','title':'paper','sections':[{'ref':'page 1','text':'abc'}]})
 
 

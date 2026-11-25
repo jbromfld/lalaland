@@ -70,4 +70,4 @@ def test_configurable_final_output_budget(monkeypatch):
     summary.generate(settings, 'model', 'prompt', structured=True)
     assert post.call_args.kwargs['json']['options']['num_predict'] == 8192
     summary.generate(settings, 'model', 'prompt')
-    assert post.call_args.kwargs['json']['options']['num_predict'] == 2048
+    assert post.call_args.kwargs['json']['options']['num_predict'] == 4096
