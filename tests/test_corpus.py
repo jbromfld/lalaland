@@ -238,20 +238,22 @@ def test_oversized_evidence_note_splits_without_losing_text_or_references():
     assert ''.join(part.removeprefix(header) for part in parts) == note
 
 
-def test_condensation_retries_with_stricter_target_before_splitting():
+def test_condensation_retries_when_first_pass_only_shrinks_slightly():
     calls = []
     source = ['Finding [page 1]. ' * 180]
 
     def generate(settings, model, prompt, structured=False):
         calls.append(prompt)
-        if 'at most' in prompt:
+        if 'one quarter' in prompt:
             return 'Short finding [page 1].'
         return prompt.split('\n', 1)[1]
 
     result = summary.condense_batch(Settings(), 'custom', source, generate)
     assert result == ['Short finding [page 1].']
     assert len(calls) == 2
-    assert 'less than half their current length' in calls[1]
+    assert 'at most 270 words' in calls[0]
+    assert 'at most 135 words' in calls[1]
+    assert 'one quarter of their current length' in calls[1]
 
 
 def test_nonshrinking_reduction_fails(monkeypatch):
